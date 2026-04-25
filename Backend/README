@@ -1,0 +1,13 @@
+Backend for this project
+
+Run with:
+
+1. Install requirements from `requirements.txt`
+2. Put your Gemini key in `Backend/.env`
+3. Start the API with `python main.py`
+
+Useful routes:
+
+- `GET /health`
+- `GET /demo`
+- `POST /v1/evaluate`

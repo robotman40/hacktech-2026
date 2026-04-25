@@ -1,0 +1,29 @@
+Frontend for this project
+
+Chrome extension files:
+
+- `manifest.json`
+- `background.js`
+- `content.js`
+- `popup.html`
+- `popup.js`
+
+How it works:
+
+- Reads the current page HTML from the content script
+- Sends it to the backend at `http://127.0.0.1:8000`
+- Calls `/v1/evaluate`
+- Shows an inline warning when `danger_rating` is above the configured threshold
+- Can open a built-in demo page from the popup for Chromium testing
+
+Load it in Chrome:
+
+1. Open `chrome://extensions`
+2. Enable Developer Mode
+3. Click Load unpacked
+4. Select this `Frontend` folder
+5. Start the backend, then click `Open Demo Page` in the extension popup
+
+Notes:
+
+- Branded Google Chrome no longer reliably supports command-line unpacked extension loading, so for local testing use `Load unpacked` in Chrome or use Edge/Chromium for command-line demo launches.
