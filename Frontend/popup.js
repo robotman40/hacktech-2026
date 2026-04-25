@@ -120,6 +120,7 @@ async function loadView() {
     );
 
     document.getElementById("lastResult").innerHTML = `
+      <div><b>Page</b>: <span class="mono">${escapeHtml(result.pageUrl || "n/a")}</span></div>
       <div><b>Danger</b>: ${escapeHtml(result.danger_rating)}</div>
       <div><b>Confidence</b>: ${escapeHtml(result.confidence_score)}</div>
       <div><b>Action</b>: ${escapeHtml(result.recommended_action || "monitor")}</div>
@@ -128,7 +129,6 @@ async function loadView() {
       <div><b>Flagged phrases</b>: ${escapeHtml((result.flagged_phrases || []).join(" | ") || "None")}</div>
       <div><b>Messages scanned</b>: ${escapeHtml(result.scanned_messages || 0)}</div>
       <div><b>Endpoint</b>: <span class="mono">${escapeHtml(result.endpoint || "n/a")}</span></div>
-      <div><b>Page</b>: <span class="mono">${escapeHtml(result.pageUrl || "n/a")}</span></div>
       <div><b>Evaluation</b>: ${escapeHtml(result.evaluation || "No evaluation returned.")}</div>
       ${
         result.highest_risk_message
