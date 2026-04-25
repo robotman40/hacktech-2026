@@ -7,6 +7,16 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+const APP_ALERT_TITLE =
+  typeof HACKTECH_APP_ALERT_TITLE !== "undefined" && HACKTECH_APP_ALERT_TITLE
+    ? HACKTECH_APP_ALERT_TITLE
+    : "Hacktech Safety Alert";
+{
+  const el = document.getElementById("appBrandTitle");
+  if (el) el.textContent = APP_ALERT_TITLE;
+  document.title = APP_ALERT_TITLE;
+}
+
 function updateResultPill(result) {
   const pill = document.getElementById("resultPill");
   if (!pill) return;

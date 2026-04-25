@@ -197,6 +197,86 @@ def _strip_html_tags(html: str) -> str:
     return "\n".join(lines)
 
 
+def _skip_balanced_json_object(s: str, start: int) -> int:
+    """Return index after closing `}` for a JSON object starting at `start`, or -1."""
+    if start >= len(s) or s[start] != "{":
+        return -1
+    depth = 0
+    in_str = False
+    esc = False
+    k = start
+    while k < len(s):
+        c = s[k]
+        if in_str:
+            if esc:
+                esc = False
+            elif c == "\\":
+                esc = True
+            elif c == '"':
+                in_str = False
+        else:
+            if c == '"':
+                in_str = True
+            elif c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    return k + 1
+        k += 1
+    return -1
+
+
+def _strip_meta_flight_blobs(text: str) -> str:
+    """
+    Remove Instagram/Meta-style inline module config (e.g. {"require":[["qplTimingsServerJS",...]]})
+    that ends up in page text but is not human chat.
+    """
+    if not text:
+        return text
+    out = text
+    while True:
+        j = out.find('{"require"')
+        if j < 0:
+            break
+        end = _skip_balanced_json_object(out, j)
+        if end < 0:
+            out = out[:j] + " " + out[j + 1 :]
+            continue
+        out = out[:j] + " " + out[end:]
+    while "HasteSupportData" in out:
+        h = out.find("HasteSupportData")
+        if h < 0:
+            break
+        start = out.rfind("{", 0, h)
+        if start < 0:
+            out = out[:h] + " " + out[h + 16 :]
+            break
+        end = _skip_balanced_json_object(out, start)
+        if end < 0:
+            break
+        out = out[:start] + " " + out[end:]
+    return re.sub(r"\s+", " ", out).strip()
+
+
+def _is_obvious_page_noise(text: str) -> bool:
+    t = (text or "").strip()
+    if len(t) < 2:
+        return True
+    if re.search(r'\{"require"\s*:\s*\[\[', t):
+        return True
+    if re.search(
+        r"HasteSupportData|qplTimingsServerJS|ScheduledServerJS|__bbox|clpData", t, re.I
+    ):
+        return True
+    if len(t) > 60:
+        letters = len(re.findall(r"[a-zA-Z]", t))
+        structural = len(re.findall(r'[{}[\]":,\\]', t))
+        if structural > 25 and letters < structural:
+            return True
+    return False
+
+
 def _normalize_phrase(phrase: str) -> str:
     return re.sub(r"\s+", " ", phrase).strip(" \n\r\t\"'.,:;!?")
 
@@ -611,8 +691,22 @@ async def evaluate(request: fastapi.Request):
     else:
         html = (await request.body()).decode("utf-8")
 
+    page_text = _strip_meta_flight_blobs(page_text)
+    cleaned_messages: list[dict[str, Any]] = []
+    for m in messages:
+        if not isinstance(m, dict):
+            continue
+        t = _strip_meta_flight_blobs(str(m.get("text") or "")).strip()
+        if not t or _is_obvious_page_noise(t):
+            continue
+        row = dict(m)
+        row["text"] = t
+        cleaned_messages.append(row)
+    messages = cleaned_messages
+
     stripped_html = _strip_html_tags(html) if html else ""
     analysis_text = page_text.strip() or _format_messages(messages) or stripped_html
+    analysis_text = _strip_meta_flight_blobs(analysis_text)
     fallback = _fallback_evaluate(analysis_text, messages)
     fallback["platform"] = platform
 
@@ -647,6 +741,8 @@ async def evaluate(request: fastapi.Request):
     9. OBFUSCATION — use of leetspeak, code words, deliberate misspellings, or symbol substitution to evade detection (e.g., "s3x", "m33t", "p@rk"). Note this separately as it elevates concern for any other category present.
 
     Consider the FULL conversation context, not just individual messages. Grooming unfolds over time — early messages may seem innocent but become alarming in the context of later ones. Conversely, a single concerning message in an otherwise normal exchange may be a joke or misunderstanding.
+
+    Ignore page boilerplate that is not human chat: JSON or JavaScript config strings (e.g. containing "require", "HasteSupportData", "qplTimings"), app telemetry, or minified data blobs. Do not use those for danger_rating, flagged_messages, or highest_risk_message.
 
     When uncertain, err toward flagging. False positives are recoverable; missed grooming is not.
 
