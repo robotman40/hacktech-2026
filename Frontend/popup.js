@@ -63,7 +63,7 @@ function threatLabel(threat) {
     SELF_HARM_CONTENT: "Self-harm content",
     HATE_HARASSMENT: "Harassment",
     FINANCIAL_SCAM: "Financial scam",
-    OBFUSCATION: "Hidden language"
+    OBFUSCATION: "Hidden language",
   };
   return labels[threat] || threat.replaceAll("_", " ").toLowerCase();
 }
@@ -73,7 +73,7 @@ function renderThreatChips(threats) {
   return threats
     .map(
       (threat) =>
-        `<span style="display:inline-flex;align-items:center;margin:4px 6px 0 0;padding:5px 9px;border-radius:999px;background:#fff1ef;color:#c4554d;border:1px solid rgba(196,85,77,0.14);font-size:11px;font-weight:700;">${escapeHtml(threatLabel(threat))}</span>`
+        `<span style="display:inline-flex;align-items:center;margin:4px 6px 0 0;padding:5px 9px;border-radius:999px;background:#fff1ef;color:#c4554d;border:1px solid rgba(196,85,77,0.14);font-size:11px;font-weight:700;">${escapeHtml(threatLabel(threat))}</span>`,
     )
     .join("");
 }
@@ -83,9 +83,14 @@ async function loadView() {
     if (!response?.success) return;
     const settings = response.settings;
     document.getElementById("enabled").checked = Boolean(settings.enabled);
-    document.getElementById("backendBaseUrl").value = settings.backendBaseUrl || "http://127.0.0.1:8000";
-    document.getElementById("scanIntervalMinutes").value = String(settings.scanIntervalMinutes || 1);
-    document.getElementById("warningThreshold").value = String(settings.warningThreshold || 40);
+    document.getElementById("backendBaseUrl").value =
+      settings.backendBaseUrl || "http://127.0.0.1:8000";
+    document.getElementById("scanIntervalMinutes").value = String(
+      settings.scanIntervalMinutes || 1,
+    );
+    document.getElementById("warningThreshold").value = String(
+      settings.warningThreshold || 40,
+    );
   });
 
   chrome.runtime.sendMessage({ type: "GET_LAST_RESULT" }, (response) => {
@@ -104,7 +109,7 @@ async function loadView() {
           <div><b>${escapeHtml(item.speaker || "unknown")}</b>: ${escapeHtml(item.text || "")}</div>
           <div class="mutedLine" style="margin-top:4px;">Source: ${escapeHtml(item.source || "generic")}</div>
         </div>
-      `
+      `,
     );
 
     const flaggedMessages = renderList(
@@ -116,7 +121,7 @@ async function loadView() {
           <div class="mutedLine" style="margin-top:4px;">Reasons: ${escapeHtml((item.reasons || []).map(threatLabel).join(", ") || "None")}</div>
           <div class="mutedLine" style="margin-top:4px;">Matched: ${escapeHtml((item.phrases || []).join(" | ") || "None")}</div>
         </div>
-      `
+      `,
     );
 
     document.getElementById("lastResult").innerHTML = `
@@ -147,12 +152,23 @@ document.getElementById("save").addEventListener("click", () => {
       type: "SAVE_SETTINGS",
       settings: {
         enabled: document.getElementById("enabled").checked,
-        backendBaseUrl: document.getElementById("backendBaseUrl").value.trim() || "http://127.0.0.1:8000",
-        scanIntervalMinutes: Math.max(1, Number(document.getElementById("scanIntervalMinutes").value) || 1),
-        warningThreshold: Math.max(0, Math.min(100, Number(document.getElementById("warningThreshold").value) || 40))
-      }
+        backendBaseUrl:
+          document.getElementById("backendBaseUrl").value.trim() ||
+          "http://127.0.0.1:8000",
+        scanIntervalMinutes: Math.max(
+          1,
+          Number(document.getElementById("scanIntervalMinutes").value) || 1,
+        ),
+        warningThreshold: Math.max(
+          0,
+          Math.min(
+            100,
+            Number(document.getElementById("warningThreshold").value) || 40,
+          ),
+        ),
+      },
     },
-    () => loadView()
+    () => loadView(),
   );
 });
 
