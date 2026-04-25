@@ -1,5 +1,5 @@
 const SETTINGS_KEY = "hacktechSafetySettings";
-const RESULT_KEY = "hacktechSafetyLastResult";
+const RESULTS_KEY = "hacktechSafetyTabResults";
 
 const DEFAULT_SETTINGS = {
   enabled: true,
@@ -23,13 +23,48 @@ async function saveSettings(patch) {
   return next;
 }
 
-async function getLastResult() {
-  const result = await chrome.storage.local.get({ [RESULT_KEY]: null });
-  return result[RESULT_KEY];
+async function getTabResults() {
+  const result = await chrome.storage.local.get({ [RESULTS_KEY]: {} });
+  return result[RESULTS_KEY] || {};
 }
 
-async function setLastResult(value) {
-  await chrome.storage.local.set({ [RESULT_KEY]: value });
+async function getLastResult(tabId) {
+  if (!Number.isInteger(tabId)) return null;
+  const results = await getTabResults();
+  return results[String(tabId)] || null;
+}
+
+async function setLastResult(tabId, value) {
+  if (!Number.isInteger(tabId)) return;
+  const results = await getTabResults();
+  results[String(tabId)] = value;
+  await chrome.storage.local.set({ [RESULTS_KEY]: results });
+}
+
+async function clearLastResult(tabId) {
+  if (!Number.isInteger(tabId)) return;
+  const results = await getTabResults();
+  delete results[String(tabId)];
+  await chrome.storage.local.set({ [RESULTS_KEY]: results });
+}
+
+async function getActiveTab() {
+  const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  return tabs[0] || null;
+}
+
+function normalizeComparableUrl(value) {
+  try {
+    const url = new URL(String(value || ""));
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return String(value || "").split("#")[0];
+  }
+}
+
+function samePageUrl(a, b) {
+  return normalizeComparableUrl(a) === normalizeComparableUrl(b);
 }
 
 async function scheduleAlarm(minutes) {
@@ -63,9 +98,7 @@ async function checkIsSocialPage(pageUrl, backendBaseUrl) {
   }
 }
 
-async function postHtmlToBackend(html, pageUrl) {
-  const pageText = arguments[2];
-  const messages = arguments[3];
+async function postHtmlToBackend(html, pageUrl, pageText, messages, platform, tabId) {
   const settings = await getSettings();
   const headers = { "Content-Type": "application/json" };
 
@@ -117,7 +150,8 @@ async function postHtmlToBackend(html, pageUrl) {
         recommended_action: String(payload?.recommended_action || "none"),
         highest_risk_message: payload?.highest_risk_message ? String(payload.highest_risk_message) : null,
         scanned_messages: Array.isArray(messages) ? messages.length : 0,
-        platform: String(payload?.platform || arguments[4] || "generic"),
+        platform: String(payload?.platform || platform || "generic"),
+        tabId,
         extracted_messages: Array.isArray(messages)
           ? messages.map((item) => ({
               speaker: String(item.speaker || "unknown"),
@@ -126,8 +160,8 @@ async function postHtmlToBackend(html, pageUrl) {
             }))
           : []
       };
-      console.log("[kandor] Received result", result);
-      await setLastResult(result);
+      console.log("[Hacktech Safety] Received result", result);
+      await setLastResult(tabId, result);
       return result;
     } catch (error) {
       console.warn("[kandor] Backend request failed", endpoint, error);
@@ -158,7 +192,17 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   chrome.tabs.sendMessage(tab.id, { type: "TRIGGER_SCAN" });
 });
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.tabs.onRemoved.addListener((tabId) => {
+  clearLastResult(tabId);
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.url || changeInfo.status === "loading") {
+    clearLastResult(tabId);
+  }
+});
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "GET_SETTINGS") {
     getSettings().then((settings) => sendResponse({ success: true, settings }));
     return true;
@@ -170,7 +214,22 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message?.type === "GET_LAST_RESULT") {
-    getLastResult().then((result) => sendResponse({ success: true, result }));
+    const explicitTabId = Number.isInteger(message?.tabId) ? message.tabId : null;
+    (explicitTabId != null ? chrome.tabs.get(explicitTabId) : getActiveTab()).then(async (tab) => {
+      const result = await getLastResult(tab?.id);
+      if (!result || !tab?.id) {
+        sendResponse({ success: true, result: null, tabId: tab?.id ?? null });
+        return;
+      }
+
+      if (!samePageUrl(result.pageUrl, tab.url)) {
+        await clearLastResult(tab.id);
+        sendResponse({ success: true, result: null, tabId: tab.id });
+        return;
+      }
+
+      sendResponse({ success: true, result, tabId: tab.id });
+    });
     return true;
   }
 
@@ -196,7 +255,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   (async () => {
     console.log("[kandor] SCAN_PAGE_HTML received", message?.pageUrl);
     const settings = await getSettings();
+    const tabId = sender?.tab?.id;
     if (!settings.enabled) {
+      await clearLastResult(tabId);
       sendResponse({ success: true, skipped: true, reason: "disabled" });
       return;
     }
@@ -213,11 +274,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
     const socialCheck = await checkIsSocialPage(pageUrl, settings.backendBaseUrl);
     if (socialCheck.ok && socialCheck.isSocial === false) {
+      await clearLastResult(tabId);
       sendResponse({ success: true, skipped: true, reason: "not_social" });
       return;
     }
 
-    const result = await postHtmlToBackend(html, pageUrl, pageText, messages, platform);
+    const result = await postHtmlToBackend(html, pageUrl, pageText, messages, platform, tabId);
     sendResponse({ success: true, result, settings });
   })().catch((error) => {
     sendResponse({ success: false, error: error.message });

@@ -798,6 +798,11 @@ function showBanner(result, threshold) {
     });
 }
 
+function clearBannerUi() {
+  clearFlaggedHighlights();
+  document.getElementById("hacktech-safety-banner")?.remove();
+}
+
 function pageTextForScanning() {
   const clone = document.body?.cloneNode(true);
   clone?.querySelector("#hacktech-safety-banner")?.remove();
@@ -829,10 +834,12 @@ function scanPage(noSignatureCheck = false) {
           "[kandor] Runtime error",
           chrome.runtime.lastError.message,
         );
+        clearBannerUi();
         return;
       }
       if (!response?.success || response?.skipped) {
         console.warn("[Hacktech Safety] Scan skipped or failed", response);
+        clearBannerUi();
         return;
       }
       console.log("[kandor] Scan result", response.result);
