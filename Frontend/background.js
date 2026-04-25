@@ -49,8 +49,22 @@ async function clearLastResult(tabId) {
 }
 
 async function getActiveTab() {
-  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   return tabs[0] || null;
+}
+
+function normalizeComparableUrl(value) {
+  try {
+    const url = new URL(String(value || ""));
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return String(value || "").split("#")[0];
+  }
+}
+
+function samePageUrl(a, b) {
+  return normalizeComparableUrl(a) === normalizeComparableUrl(b);
 }
 
 async function scheduleAlarm(minutes) {
@@ -182,6 +196,12 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   clearLastResult(tabId);
 });
 
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.url || changeInfo.status === "loading") {
+    clearLastResult(tabId);
+  }
+});
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "GET_SETTINGS") {
     getSettings().then((settings) => sendResponse({ success: true, settings }));
@@ -195,9 +215,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message?.type === "GET_LAST_RESULT") {
     const explicitTabId = Number.isInteger(message?.tabId) ? message.tabId : null;
-    (explicitTabId != null ? Promise.resolve({ id: explicitTabId }) : getActiveTab()).then((tab) =>
-      getLastResult(tab?.id).then((result) => sendResponse({ success: true, result, tabId: tab?.id ?? null }))
-    );
+    (explicitTabId != null ? chrome.tabs.get(explicitTabId) : getActiveTab()).then(async (tab) => {
+      const result = await getLastResult(tab?.id);
+      if (!result || !tab?.id) {
+        sendResponse({ success: true, result: null, tabId: tab?.id ?? null });
+        return;
+      }
+
+      if (!samePageUrl(result.pageUrl, tab.url)) {
+        await clearLastResult(tab.id);
+        sendResponse({ success: true, result: null, tabId: tab.id });
+        return;
+      }
+
+      sendResponse({ success: true, result, tabId: tab.id });
+    });
     return true;
   }
 
