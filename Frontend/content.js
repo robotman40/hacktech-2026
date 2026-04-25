@@ -1,6 +1,8 @@
 let lastHtmlSignature = "";
 let lastBannerAt = 0;
+let lastBannerSignature = "";
 const MAX_MESSAGES = 24;
+const OPEN_SANS_CSS_URL = "https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&display=swap";
 
 function currentPageHtml() {
   return document.documentElement?.outerHTML || "";
@@ -141,10 +143,10 @@ function renderFlaggedMessages(result) {
   const html = items
     .map(
       (item) => `
-        <div style="margin-top:8px;padding:8px;border-radius:8px;background:#0f172a;border:1px solid #334155;">
-          <div><b>${item.speaker || "unknown"}</b>: ${item.text || ""}</div>
-          <div style="margin-top:4px;color:#cbd5e1;">Reasons: ${(item.reasons || []).join(", ") || "None"}</div>
-          <div style="margin-top:4px;color:#94a3b8;">Matched: ${(item.phrases || []).join(" | ") || "None"}</div>
+        <div style="margin-top:8px;padding:10px 12px;border-radius:12px;background:#fffdfa;border:1px solid rgba(55,53,47,0.12);color:#37352f;">
+          <div style="color:#2f7d4f;"><b>${item.speaker || "unknown"}</b>: ${item.text || ""}</div>
+          <div style="margin-top:5px;color:#37352f;">Reasons: ${(item.reasons || []).map(threatLabel).join(", ") || "None"}</div>
+          <div style="margin-top:5px;color:#6b6a67;">Matched: ${(item.phrases || []).join(" | ") || "None"}</div>
         </div>
       `
     )
@@ -152,12 +154,72 @@ function renderFlaggedMessages(result) {
   return `<div style="margin-top:10px;font-size:12px;line-height:1.4;"><b>Flagged messages</b>${html}</div>`;
 }
 
+function conciseActionLabel(action) {
+  const labels = {
+    none: "No action",
+    monitor: "Monitor",
+    warn_user: "Warn user",
+    block_and_alert_guardian: "Block and alert guardian"
+  };
+  return labels[action] || action || "Monitor";
+}
+
+function conciseEvaluation(text) {
+  const value = String(text || "").trim();
+  if (!value) return "";
+  const sentence = value.split(/(?<=[.!?])\s+/)[0] || value;
+  return sentence.length > 180 ? `${sentence.slice(0, 177)}...` : sentence;
+}
+
+function threatLabel(threat) {
+  const labels = {
+    GROOMING: "Trust grooming",
+    SEXUAL_CONTENT: "Sexual content",
+    PII_SOLICITATION: "Personal info request",
+    PLATFORM_MIGRATION: "Move off-platform",
+    THREATS_COERCION: "Threats or coercion",
+    SELF_HARM_CONTENT: "Self-harm content",
+    HATE_HARASSMENT: "Harassment",
+    FINANCIAL_SCAM: "Financial scam",
+    OBFUSCATION: "Hidden language"
+  };
+  return labels[threat] || threat.replaceAll("_", " ").toLowerCase();
+}
+
+function renderThreatChips(threats) {
+  if (!Array.isArray(threats) || !threats.length) return "None";
+  return threats
+    .map(
+      (threat) =>
+        `<span style="display:inline-flex;align-items:center;margin:4px 6px 0 0;padding:5px 9px;border-radius:999px;background:#fff1ef;color:#c4554d;border:1px solid rgba(196,85,77,0.14);font-size:11px;font-weight:700;">${threatLabel(threat)}</span>`
+    )
+    .join("");
+}
+
+function ensureOpenSans() {
+  if (document.getElementById("hacktech-open-sans")) return;
+  const link = document.createElement("link");
+  link.id = "hacktech-open-sans";
+  link.rel = "stylesheet";
+  link.href = OPEN_SANS_CSS_URL;
+  document.head.appendChild(link);
+}
+
 function showBanner(result, threshold) {
   if (Number(result?.danger_rating || 0) < Number(threshold || 40)) return;
+  ensureOpenSans();
 
   const now = Date.now();
-  if (now - lastBannerAt < 8000) return;
+  const bannerSignature = JSON.stringify({
+    danger: Number(result?.danger_rating || 0),
+    evaluation: String(result?.evaluation || ""),
+    highestRiskMessage: String(result?.highest_risk_message || ""),
+    threats: (result?.threats_detected || []).join("|"),
+    scanned: Number(result?.scanned_messages || 0)
+  });
+  if (bannerSignature === lastBannerSignature && now - lastBannerAt < 3000) return;
   lastBannerAt = now;
+  lastBannerSignature = bannerSignature;
 
   const existing = document.getElementById("hacktech-safety-banner");
   if (existing) existing.remove();
@@ -167,37 +229,39 @@ function showBanner(result, threshold) {
   banner.style.position = "fixed";
   banner.style.top = "16px";
   banner.style.right = "16px";
-  banner.style.maxWidth = "380px";
+  banner.style.maxWidth = "420px";
   banner.style.zIndex = "2147483647";
-  banner.style.padding = "14px";
-  banner.style.borderRadius = "12px";
-  banner.style.border = "1px solid #7f1d1d";
-  banner.style.borderLeft = "5px solid #ef4444";
-  banner.style.background = "#111827";
-  banner.style.color = "#f9fafb";
-  banner.style.fontFamily = "Arial, sans-serif";
-  banner.style.boxShadow = "0 12px 28px rgba(0,0,0,0.35)";
+  banner.style.padding = "16px";
+  banner.style.borderRadius = "18px";
+  banner.style.border = "1px solid rgba(55,53,47,0.14)";
+  banner.style.borderLeft = "5px solid #c4554d";
+  banner.style.background = "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(251,251,250,0.96))";
+  banner.style.color = "#37352f";
+  banner.style.fontFamily = "'Open Sans', ui-sans-serif, sans-serif";
+  banner.style.boxShadow = "0 18px 45px rgba(15,23,42,0.16)";
+  banner.style.backdropFilter = "blur(10px)";
   banner.innerHTML = `
-    <div style="font-weight:700;font-size:14px;margin-bottom:6px;">Hacktech Safety Alert</div>
-    <div style="font-size:12px;line-height:1.5;">
-      <b>Danger rating:</b> ${result.danger_rating}<br/>
-      <b>Confidence:</b> ${result.confidence_score}<br/>
-      <b>Action:</b> ${result.recommended_action || "monitor"}<br/>
-      <b>Threats:</b> ${(result.threats_detected || []).join(", ") || "None"}<br/>
-      <b>Platform:</b> ${result.platform || pagePlatform()}<br/>
-      <b>Messages scanned:</b> ${result.scanned_messages || 0}<br/>
-      <b>Flagged phrases:</b> ${(result.flagged_phrases || []).join(" | ") || "None"}<br/>
-      <b>Evaluation:</b> ${result.evaluation}
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;">
+      <div style="font-weight:700;font-size:15px;">Hacktech Safety Alert</div>
+      <div style="padding:4px 8px;border-radius:999px;background:#fff1ef;color:#c4554d;font-size:11px;font-weight:700;">Risk ${result.danger_rating}</div>
+    </div>
+    <div style="font-size:12px;line-height:1.6;">
+      <div><b>${conciseActionLabel(result.recommended_action || "monitor")}</b></div>
+      <div style="margin-top:8px;">${renderThreatChips(result.threats_detected || [])}</div>
+      ${
+        conciseEvaluation(result.evaluation)
+          ? `<div style="margin-top:10px;color:#4b5563;">${conciseEvaluation(result.evaluation)}</div>`
+          : ""
+      }
     </div>
     ${
       result.highest_risk_message
-        ? `<div style="margin-top:10px;font-size:12px;line-height:1.4;background:#1f2937;border-radius:8px;padding:8px;">
+        ? `<div style="margin-top:10px;font-size:12px;line-height:1.5;background:#f7f6f3;border-radius:12px;padding:10px;border:1px solid rgba(55,53,47,0.1);">
             <b>Highest-risk message:</b><br/>${result.highest_risk_message}
           </div>`
         : ""
     }
-    ${renderFlaggedMessages(result)}
-    <button id="hacktech-safety-close" style="margin-top:10px;background:#1f2937;color:#fff;border:1px solid #374151;border-radius:8px;padding:6px 10px;cursor:pointer;">Dismiss</button>
+    <button id="hacktech-safety-close" style="margin-top:12px;background:#fff;color:#37352f;border:1px solid rgba(55,53,47,0.15);border-radius:10px;padding:7px 12px;cursor:pointer;font-weight:600;">Dismiss</button>
   `;
 
   document.body.appendChild(banner);

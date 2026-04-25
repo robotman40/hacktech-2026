@@ -1,3 +1,73 @@
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function updateResultPill(result) {
+  const pill = document.getElementById("resultPill");
+  if (!pill) return;
+
+  const rating = Number(result?.danger_rating || 0);
+  if (!result) {
+    pill.textContent = "Idle";
+    pill.className = "pill pillSafe";
+    return;
+  }
+
+  if (rating >= 40) {
+    pill.textContent = `Risk ${rating}`;
+    pill.className = "pill pillWarn";
+    return;
+  }
+
+  pill.textContent = rating > 0 ? `Monitor ${rating}` : "Clear";
+  pill.className = "pill pillSafe";
+}
+
+function renderList(title, items, mapper) {
+  if (!items.length) {
+    return `<div><div><b>${escapeHtml(title)}</b></div><div class="mutedLine" style="margin-top:6px;">None</div></div>`;
+  }
+
+  return `
+    <div>
+      <div><b>${escapeHtml(title)}</b></div>
+      <div class="listBlock" style="margin-top:8px;">
+        ${items.map(mapper).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function threatLabel(threat) {
+  const labels = {
+    GROOMING: "Trust grooming",
+    SEXUAL_CONTENT: "Sexual content",
+    PII_SOLICITATION: "Personal info request",
+    PLATFORM_MIGRATION: "Move off-platform",
+    THREATS_COERCION: "Threats or coercion",
+    SELF_HARM_CONTENT: "Self-harm content",
+    HATE_HARASSMENT: "Harassment",
+    FINANCIAL_SCAM: "Financial scam",
+    OBFUSCATION: "Hidden language"
+  };
+  return labels[threat] || threat.replaceAll("_", " ").toLowerCase();
+}
+
+function renderThreatChips(threats) {
+  if (!threats.length) return "None";
+  return threats
+    .map(
+      (threat) =>
+        `<span style="display:inline-flex;align-items:center;margin:4px 6px 0 0;padding:5px 9px;border-radius:999px;background:#fff1ef;color:#c4554d;border:1px solid rgba(196,85,77,0.14);font-size:11px;font-weight:700;">${escapeHtml(threatLabel(threat))}</span>`
+    )
+    .join("");
+}
+
 async function loadView() {
   chrome.runtime.sendMessage({ type: "GET_SETTINGS" }, (response) => {
     if (!response?.success) return;
@@ -9,40 +79,53 @@ async function loadView() {
   });
 
   chrome.runtime.sendMessage({ type: "GET_LAST_RESULT" }, (response) => {
-    if (!response?.success || !response.result) return;
+    if (!response?.success || !response.result) {
+      updateResultPill(null);
+      return;
+    }
     const result = response.result;
-    const flaggedMessages = (result.flagged_messages || [])
-      .map(
-        (item) =>
-          `<div style="margin-top:8px;"><b>${item.speaker}</b>: ${item.text}<br/><span class="muted">Reasons: ${(item.reasons || []).join(", ") || "None"}</span><br/><span class="muted">Matched: ${(item.phrases || []).join(" | ") || "None"}</span></div>`
-      )
-      .join("");
-    const extractedMessages = (result.extracted_messages || [])
-      .slice(-8)
-      .map(
-        (item) =>
-          `<div style="margin-top:8px;"><b>${item.speaker}</b>: ${item.text}<br/><span class="muted">Source: ${item.source || "generic"}</span></div>`
-      )
-      .join("");
+    updateResultPill(result);
+
+    const extractedMessages = renderList(
+      "Extracted transcript",
+      (result.extracted_messages || []).slice(-8),
+      (item) => `
+        <div class="listItem">
+          <div><b>${escapeHtml(item.speaker || "unknown")}</b>: ${escapeHtml(item.text || "")}</div>
+          <div class="mutedLine" style="margin-top:4px;">Source: ${escapeHtml(item.source || "generic")}</div>
+        </div>
+      `
+    );
+
+    const flaggedMessages = renderList(
+      "Flagged messages",
+      result.flagged_messages || [],
+      (item) => `
+        <div class="listItem">
+          <div><b>${escapeHtml(item.speaker || "unknown")}</b>: ${escapeHtml(item.text || "")}</div>
+          <div class="mutedLine" style="margin-top:4px;">Reasons: ${escapeHtml((item.reasons || []).map(threatLabel).join(", ") || "None")}</div>
+          <div class="mutedLine" style="margin-top:4px;">Matched: ${escapeHtml((item.phrases || []).join(" | ") || "None")}</div>
+        </div>
+      `
+    );
+
     document.getElementById("lastResult").innerHTML = `
-      <b>Danger:</b> ${result.danger_rating}<br/>
-      <b>Confidence:</b> ${result.confidence_score}<br/>
-      <b>Action:</b> ${result.recommended_action || "monitor"}<br/>
-      <b>Platform:</b> ${result.platform || "generic"}<br/>
-      <b>Threats:</b> ${(result.threats_detected || []).join(", ") || "None"}<br/>
-      <b>Flagged phrases:</b> ${(result.flagged_phrases || []).join(" | ") || "None"}<br/>
-      <b>Messages scanned:</b> ${result.scanned_messages || 0}<br/>
-      <b>Endpoint:</b> ${result.endpoint}<br/>
-      <b>Page:</b> ${result.pageUrl}<br/>
-      <b>Evaluation:</b> ${result.evaluation}
+      <div><b>Danger</b>: ${escapeHtml(result.danger_rating)}</div>
+      <div><b>Confidence</b>: ${escapeHtml(result.confidence_score)}</div>
+      <div><b>Action</b>: ${escapeHtml(result.recommended_action || "monitor")}</div>
+      <div><b>Platform</b>: ${escapeHtml(result.platform || "generic")}</div>
+      <div><b>Threats</b>: <span>${renderThreatChips(result.threats_detected || [])}</span></div>
+      <div><b>Flagged phrases</b>: ${escapeHtml((result.flagged_phrases || []).join(" | ") || "None")}</div>
+      <div><b>Messages scanned</b>: ${escapeHtml(result.scanned_messages || 0)}</div>
+      <div><b>Endpoint</b>: <span class="mono">${escapeHtml(result.endpoint || "n/a")}</span></div>
+      <div><b>Page</b>: <span class="mono">${escapeHtml(result.pageUrl || "n/a")}</span></div>
+      <div><b>Evaluation</b>: ${escapeHtml(result.evaluation || "No evaluation returned.")}</div>
       ${
         result.highest_risk_message
-          ? `<div style="margin-top:8px;"><b>Highest-risk message:</b> ${result.highest_risk_message}</div>`
+          ? `<div class="listItem"><b>Highest-risk message</b><div style="margin-top:6px;">${escapeHtml(result.highest_risk_message)}</div></div>`
           : ""
       }
-      <div style="margin-top:10px;"><b>Extracted transcript</b></div>
-      ${extractedMessages || '<div class="muted" style="margin-top:8px;">No extracted messages.</div>'}
-      <div style="margin-top:10px;"><b>Flagged messages</b></div>
+      ${extractedMessages}
       ${flaggedMessages}
     `;
   });

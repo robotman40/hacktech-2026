@@ -25,10 +25,17 @@ RISK_RULES = [
             r"don't tell your parents",
             r"our secret",
             r"keep this between us",
+            r"delete this chat",
+            r"erase this chat",
             r"special to me",
             r"only you understand me",
             r"you're so mature for your age",
+            r"you are so mature for your age",
+            r"you seem really mature for your age",
             r"i can send you a gift",
+            r"tell me when your parents are asleep",
+            r"tell me when you are home alone",
+            r"they would not understand our connection",
         ],
     },
     {
@@ -41,6 +48,14 @@ RISK_RULES = [
             r"send (me )?(a )?pic",
             r"sexy",
             r"turn me on",
+            r"i like young girls",
+            r"i like underage girls",
+            r"i like little girls",
+            r"young girls turn me on",
+            r"underage girls turn me on",
+            r"i'm into young girls",
+            r"i'm attracted to young girls",
+            r"i prefer younger girls",
         ],
     },
     {
@@ -95,7 +110,17 @@ RISK_RULES = [
     {
         "label": "HATE_HARASSMENT",
         "weight": 16,
-        "patterns": [r"worthless", r"stupid", r"hate you", r"nobody wants you"],
+        "patterns": [
+            r"worthless",
+            r"stupid",
+            r"hate you",
+            r"nobody wants you",
+            r"nigger",
+            r"faggot",
+            r"kike",
+            r"spic",
+            r"chink",
+        ],
     },
     {
         "label": "FINANCIAL_SCAM",
@@ -115,6 +140,14 @@ RISK_RULES = [
         "patterns": [r"s3x", r"m33t", r"p@rk", r"w h a t s a p p", r"t3l3gr4m"],
     },
 ]
+
+ROLE_WEIGHTS = {
+    "sender": 1.0,
+    "adult": 1.0,
+    "receiver": 0.55,
+    "child": 0.55,
+    "unknown": 0.8,
+}
 
 def _get_client():
     global client
@@ -177,14 +210,58 @@ def _run_rules(text: str) -> tuple[list[str], list[str], int]:
     return labels, phrases[:6], score
 
 
-def _message_risk_score(text: str) -> int:
+def _speaker_role(message: dict[str, Any] | None) -> str:
+    role = str((message or {}).get("speaker") or "unknown").strip().lower()
+    if role in {"sender", "adult"}:
+        return "sender"
+    if role in {"receiver", "child"}:
+        return "receiver"
+    return "unknown"
+
+
+def _is_question_or_prompt(text: str) -> bool:
+    normalized = _normalize_for_matching(text)
+    starters = [
+        "send",
+        "move",
+        "tell me",
+        "what is",
+        "what's",
+        "where do",
+        "when are",
+        "call me",
+        "text me",
+        "add me",
+        "give me",
+    ]
+    return "?" in text or any(normalized.startswith(starter) for starter in starters)
+
+
+def _message_risk_score(text: str, message: dict[str, Any] | None = None) -> int:
     labels, _phrases, score = _run_rules(text)
     normalized = _normalize_for_matching(text)
-    if "sender" in normalized and "receiver" in normalized:
-        score += 2
-    if "?" in text and any(label in labels for label in ["PII_SOLICITATION", "GROOMING"]):
-        score += 4
-    return score
+    role = _speaker_role(message)
+    weighted = int(round(score * ROLE_WEIGHTS.get(role, 0.8)))
+
+    if _is_question_or_prompt(text) and any(label in labels for label in ["PII_SOLICITATION", "GROOMING", "PLATFORM_MIGRATION"]):
+        weighted += 6 if role == "sender" else 2
+
+    # A receiver simply acknowledging an app name is lower-signal than a sender directing a move.
+    if role == "receiver" and labels == ["PLATFORM_MIGRATION"] and len(normalized.split()) <= 8:
+        weighted = max(0, weighted - 12)
+
+    if role == "receiver" and "PII_SOLICITATION" in labels and not _is_question_or_prompt(text):
+        weighted = max(0, weighted - 6)
+
+    if any(token in normalized for token in ["nigger", "faggot", "kike", "spic", "chink"]):
+        weighted = max(weighted, 40)
+
+    if "delete this chat" in normalized and "parents are asleep" in normalized:
+        weighted += 22
+    elif "parents are asleep" in normalized or "home alone" in normalized:
+        weighted += 12
+
+    return weighted
 
 
 def _compute_conversation_boosts(messages: list[dict[str, Any]]) -> tuple[int, list[str]]:
@@ -193,7 +270,7 @@ def _compute_conversation_boosts(messages: list[dict[str, Any]]) -> tuple[int, l
 
     boost = 0
     notes = []
-    sender_msgs = [m for m in messages if str(m.get("speaker")) == "sender"]
+    sender_msgs = [m for m in messages if _speaker_role(m) == "sender"]
     joined_sender = " ".join(str(m.get("text") or "") for m in sender_msgs)
     joined_norm = _normalize_for_matching(joined_sender)
 
@@ -209,6 +286,12 @@ def _compute_conversation_boosts(messages: list[dict[str, Any]]) -> tuple[int, l
         boost += 12
         notes.append("contact plus location escalation")
 
+    if any(token in joined_norm for token in ["delete this chat", "keep this between us", "our secret"]) and any(
+        token in joined_norm for token in ["parents are asleep", "home alone"]
+    ):
+        boost += 14
+        notes.append("secrecy plus isolation timing")
+
     sender_questions = sum(1 for m in sender_msgs if "?" in str(m.get("text") or ""))
     receiver_questions = sum(
         1 for m in messages if str(m.get("speaker")) == "receiver" and "?" in str(m.get("text") or "")
@@ -216,6 +299,14 @@ def _compute_conversation_boosts(messages: list[dict[str, Any]]) -> tuple[int, l
     if sender_questions >= 3 and sender_questions > receiver_questions:
         boost += 6
         notes.append("sender-led probing")
+
+    risky_sender_count = 0
+    for message in sender_msgs:
+        if _message_risk_score(str(message.get("text") or ""), message) >= 24:
+            risky_sender_count += 1
+    if risky_sender_count >= 2:
+        boost += 8
+        notes.append("multiple risky sender turns")
 
     return boost, notes
 
@@ -227,16 +318,19 @@ def _find_flagged_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any
         if not text:
             continue
 
-        categories, phrases, score = _run_rules(text)
+        categories, phrases, base_score = _run_rules(text)
+        score = _message_risk_score(text, message)
 
-        if categories:
+        # Skip weak receiver-only acknowledgements that mention an app name but do not direct or solicit.
+        if categories and score >= 14:
             flagged_messages.append(
                 {
-                    "speaker": str(message.get("speaker") or "unknown"),
+                    "speaker": _speaker_role(message),
                     "text": text,
                     "reasons": categories,
                     "phrases": phrases,
                     "score": score,
+                    "base_score": base_score,
                 }
             )
     return flagged_messages
@@ -256,12 +350,17 @@ def _format_messages(messages: list[dict[str, Any]]) -> str:
 def _fallback_evaluate(text: str, messages: list[dict[str, Any]] | None = None):
     messages = messages or []
     threats, flagged_phrases, score = _run_rules(text)
+    flagged_messages = _find_flagged_messages(messages)
+
+    if flagged_messages:
+        strongest_message_score = max(int(item.get("score") or 0) for item in flagged_messages)
+        combined_message_score = min(70, sum(int(item.get("score") or 0) for item in flagged_messages[:3]))
+        score = max(score, strongest_message_score, combined_message_score)
 
     conversation_boost, conversation_notes = _compute_conversation_boosts(messages)
     score += conversation_boost
     danger_rating = max(0, min(100, score))
     confidence_score = 28 if not threats else min(94, 50 + len(threats) * 8 + min(conversation_boost, 12))
-    flagged_messages = _find_flagged_messages(messages)
     if flagged_messages:
         highest_risk_message = max(flagged_messages, key=lambda item: int(item.get("score") or 0))["text"]
     elif any(token in _normalize_for_matching(text) for token in ["gift card", "your address", "or else", "whatsapp", "don't tell your parents"]):
@@ -318,6 +417,8 @@ def _normalize_result(payload: dict[str, Any]) -> dict[str, Any]:
     highest_risk_message = payload.get("highest_risk_message")
     if highest_risk_message is not None:
         highest_risk_message = str(highest_risk_message)
+        if not highest_risk_message.strip():
+            highest_risk_message = None
 
     return {
         "danger_rating": max(0, min(100, int(payload.get("danger_rating", 0) or 0))),
@@ -339,12 +440,14 @@ def _normalize_result(payload: dict[str, Any]) -> dict[str, Any]:
                 "text": str(item.get("text") or ""),
                 "reasons": [str(reason) for reason in (item.get("reasons") or [])],
                 "phrases": [str(phrase) for phrase in (item.get("phrases") or [])],
+                "score": int(item.get("score") or 0),
             }
             for item in flagged_messages[:6]
             if isinstance(item, dict)
         ],
         "recommended_action": recommended_action,
         "highest_risk_message": highest_risk_message,
+        "platform": str(payload.get("platform") or "generic"),
     }
 
 
@@ -415,10 +518,11 @@ async def evaluate(request: fastapi.Request):
       "confidence": integer 0-100,
       "threats_detected": [list of category names from above that are present],
       "flagged_phrases": ["exact short suspicious phrases quoted from the conversation"],
-      "flagged_messages": [{"speaker": "sender/receiver/unknown", "text": "full flagged message", "reasons": ["category names"], "phrases": ["matched snippets"]}],
+        "flagged_messages": [{"speaker": "sender/receiver/unknown", "text": "full flagged message", "reasons": ["category names"], "phrases": ["matched snippets"]}],
       "evaluation": "2-3 sentence explanation citing specific message content",
       "recommended_action": one of "none" | "monitor" | "warn_user" | "block_and_alert_guardian",
-      "highest_risk_message": "quote of the single most concerning message, or null"
+      "highest_risk_message": "quote of the single most concerning message, or an empty string if none",
+      "platform": "instagram/discord/whatsapp/messenger/generic"
     }
 
     danger_rating guidance:
@@ -470,8 +574,9 @@ async def evaluate(request: fastapi.Request):
                                         "type": "array",
                                         "items": {"type": "string"},
                                     },
+                                    "score": {"type": "integer"},
                                 },
-                                "required": ["speaker", "text", "reasons", "phrases"],
+                                "required": ["speaker", "text", "reasons", "phrases", "score"],
                             },
                         },
                         "evaluation": {"type": "string"},
@@ -479,9 +584,8 @@ async def evaluate(request: fastapi.Request):
                             "type": "string",
                             "enum": ["none", "monitor", "warn_user", "block_and_alert_guardian"],
                         },
-                        "highest_risk_message": {
-                            "type": ["string", "null"],
-                        },
+                        "highest_risk_message": {"type": "string"},
+                        "platform": {"type": "string"},
                     },
                     "required": [
                         "danger_rating",
@@ -492,6 +596,7 @@ async def evaluate(request: fastapi.Request):
                         "evaluation",
                         "recommended_action",
                         "highest_risk_message",
+                        "platform",
                     ],
                 },
             ),
@@ -507,6 +612,10 @@ async def evaluate(request: fastapi.Request):
         parsed = json.loads(response.text)
         normalized = _normalize_result(parsed)
         fallback = _fallback_evaluate(analysis_text, messages)
+        normalized["platform"] = str(body.get("platform") or "generic") if "application/json" in content_type else "generic"
+        fallback["platform"] = normalized["platform"]
         return _merge_with_fallback(normalized, fallback)
     except json.JSONDecodeError:
-        return _fallback_evaluate(analysis_text, messages)
+        fallback = _fallback_evaluate(analysis_text, messages)
+        fallback["platform"] = str(body.get("platform") or "generic") if "application/json" in content_type else "generic"
+        return fallback

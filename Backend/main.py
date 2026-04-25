@@ -83,6 +83,62 @@ async def demo():
             background: #0f766e;
             border: 1px solid #14b8a6;
           }
+          .composer {
+            margin-top: 16px;
+            display: grid;
+            gap: 12px;
+            padding-top: 16px;
+            border-top: 1px solid rgba(148, 163, 184, 0.16);
+          }
+          .composer-grid {
+            display: grid;
+            gap: 10px;
+          }
+          .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+          }
+          textarea {
+            width: 100%;
+            min-height: 110px;
+            resize: vertical;
+            box-sizing: border-box;
+            border-radius: 14px;
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            background: rgba(15, 23, 42, 0.92);
+            color: #e2e8f0;
+            padding: 14px;
+            font: inherit;
+          }
+          select,
+          button {
+            border-radius: 12px;
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            padding: 10px 14px;
+            font: inherit;
+          }
+          select {
+            background: rgba(15, 23, 42, 0.92);
+            color: #e2e8f0;
+          }
+          button {
+            background: #2563eb;
+            color: #fff;
+            cursor: pointer;
+          }
+          button.secondary {
+            background: #1f2937;
+          }
+          .hint {
+            font-size: 13px;
+            color: #cbd5e1;
+            line-height: 1.5;
+          }
+          .feed-card {
+            display: flex;
+            flex-direction: column;
+          }
           .pill {
             display: inline-block;
             margin-bottom: 8px;
@@ -107,7 +163,7 @@ async def demo():
           </div>
 
           <div class="grid">
-            <section class="card">
+            <section class="card feed-card">
               <span class="pill">Conversation Feed</span>
               <div class="chat">
                 <div class="msg adult">
@@ -124,6 +180,24 @@ async def demo():
                   I do have WhatsApp. What kind of surprise?
                 </div>
               </div>
+
+              <div class="composer">
+                <div class="hint">
+                  Keep typing new test messages here. The extension should rescan the page as each
+                  new bubble appears.
+                </div>
+                <div class="composer-grid">
+                  <textarea id="messageInput" placeholder="Type a message to add to the conversation..."></textarea>
+                  <div class="controls">
+                    <select id="speakerSelect">
+                      <option value="adult">Adult / sender</option>
+                      <option value="child">Child / receiver</option>
+                    </select>
+                    <button id="addMessage">Send Message</button>
+                    <button id="resetChat" class="secondary">Reset Chat</button>
+                  </div>
+                </div>
+              </div>
             </section>
 
             <section class="card">
@@ -135,6 +209,66 @@ async def demo():
             </section>
           </div>
         </div>
+        <script>
+          const seedMessages = [
+            {
+              speaker: "adult",
+              text: "You seem really mature for your age. Do not tell your parents we talk, okay?"
+            },
+            {
+              speaker: "child",
+              text: "Why not? They usually check my messages."
+            },
+            {
+              speaker: "adult",
+              text: "They would not understand our connection. Move to WhatsApp and send me your address so I can mail you a surprise."
+            },
+            {
+              speaker: "child",
+              text: "I do have WhatsApp. What kind of surprise?"
+            }
+          ];
+
+          const chat = document.querySelector(".chat");
+          const messageInput = document.getElementById("messageInput");
+          const speakerSelect = document.getElementById("speakerSelect");
+          const addButton = document.getElementById("addMessage");
+          const resetButton = document.getElementById("resetChat");
+
+          function renderMessages(messages) {
+            chat.innerHTML = "";
+            for (const message of messages) {
+              const bubble = document.createElement("div");
+              bubble.className = `msg ${message.speaker}`;
+              bubble.textContent = message.text;
+              chat.appendChild(bubble);
+            }
+          }
+
+          addButton.addEventListener("click", () => {
+            const text = messageInput.value.trim();
+            if (!text) return;
+            const bubble = document.createElement("div");
+            bubble.className = `msg ${speakerSelect.value}`;
+            bubble.textContent = text;
+            chat.appendChild(bubble);
+            messageInput.value = "";
+            messageInput.focus();
+          });
+
+          messageInput.addEventListener("keydown", (event) => {
+            if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+              addButton.click();
+            }
+          });
+
+          resetButton.addEventListener("click", () => {
+            renderMessages(seedMessages);
+            messageInput.value = "";
+          });
+
+          renderMessages(seedMessages);
+        </script>
       </body>
     </html>
     """

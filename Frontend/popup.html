@@ -4,100 +4,318 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1.0" />
     <title>Hacktech Safety</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <style>
+      :root {
+        --paper: #fbfbfa;
+        --paper-strong: #ffffff;
+        --ink: #37352f;
+        --muted: #6b6a67;
+        --line: rgba(55, 53, 47, 0.12);
+        --line-strong: rgba(55, 53, 47, 0.18);
+        --surface: rgba(255, 255, 255, 0.78);
+        --surface-hover: rgba(255, 255, 255, 0.94);
+        --danger-soft: #fff1ef;
+        --danger-ink: #c4554d;
+        --success-soft: #eef8f1;
+        --success-ink: #2f7d4f;
+        --accent-soft: #f2f1ee;
+        --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      }
       body {
         margin: 0;
-        width: 320px;
-        padding: 14px;
-        background: #0f172a;
-        color: #e2e8f0;
-        font-family: Arial, sans-serif;
+        width: 380px;
+        min-height: 560px;
+        padding: 18px;
+        box-sizing: border-box;
+        background:
+          radial-gradient(circle at top left, rgba(255, 255, 255, 0.9), transparent 36%),
+          linear-gradient(180deg, #f7f6f3 0%, #f3f2ef 100%);
+        color: var(--ink);
+        font-family: "Open Sans", ui-sans-serif, sans-serif;
+      }
+      .shell {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .hero {
+        padding: 16px 16px 14px;
+        border-radius: 18px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.8));
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow);
+      }
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 9px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
       }
       h1 {
+        margin: 12px 0 6px;
+        font-size: 24px;
+        line-height: 1.1;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+      }
+      .hero p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      .section {
+        padding: 14px;
+        border-radius: 16px;
+        border: 1px solid var(--line);
+        background: var(--surface);
+        backdrop-filter: blur(10px);
+      }
+      .sectionTitle {
         margin: 0 0 10px;
-        font-size: 16px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--muted);
       }
       .row {
         margin-bottom: 10px;
       }
       label {
         display: block;
-        margin-bottom: 4px;
+        margin-bottom: 5px;
         font-size: 12px;
-        color: #cbd5e1;
+        font-weight: 600;
+        color: var(--muted);
       }
       input[type="text"],
       input[type="number"] {
         width: 100%;
         box-sizing: border-box;
-        padding: 8px;
-        border-radius: 8px;
-        border: 1px solid #334155;
-        background: #111827;
-        color: #f8fafc;
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.96);
+        color: var(--ink);
+        font-size: 13px;
+        outline: none;
+        transition: border-color 120ms ease, box-shadow 120ms ease, background 120ms ease;
+      }
+      input[type="text"]:focus,
+      input[type="number"]:focus {
+        border-color: rgba(35, 131, 226, 0.45);
+        box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.12);
+        background: #fff;
+      }
+      .toggle {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid var(--line);
+      }
+      .toggleText {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .toggleText strong {
+        font-size: 13px;
+      }
+      .toggleText span {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        accent-color: #2f7d4f;
+      }
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
       }
       button {
         width: 100%;
-        padding: 9px;
-        border-radius: 8px;
-        border: 1px solid #334155;
-        background: #1d4ed8;
-        color: #fff;
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        background: var(--paper-strong);
+        color: var(--ink);
+        font-size: 13px;
+        font-weight: 600;
         cursor: pointer;
+        transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+      }
+      button:hover {
+        background: var(--surface-hover);
+        border-color: var(--line-strong);
+      }
+      button:active {
+        transform: translateY(1px);
+      }
+      .primary {
+        background: #2f7d4f;
+        border-color: #2f7d4f;
+        color: #fff;
+      }
+      .primary:hover {
+        background: #276843;
+        border-color: #276843;
+      }
+      .secondary {
+        background: #fff;
+      }
+      .tertiary {
+        grid-column: 1 / -1;
+        background: #f4f3f1;
       }
       .card {
-        padding: 10px;
-        border-radius: 10px;
-        border: 1px solid #334155;
-        background: #111827;
+        padding: 12px;
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.84);
         font-size: 12px;
         line-height: 1.5;
       }
+      .statusCard {
+        background: linear-gradient(180deg, #ffffff, #faf9f7);
+      }
+      .statusHeader {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 8px;
+      }
+      .statusHeader b {
+        font-size: 13px;
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 4px 8px;
+        font-size: 11px;
+        font-weight: 700;
+      }
+      .pillSafe {
+        background: var(--success-soft);
+        color: var(--success-ink);
+      }
+      .pillWarn {
+        background: var(--danger-soft);
+        color: var(--danger-ink);
+      }
+      .resultContent {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .mutedLine,
       .muted {
-        color: #94a3b8;
+        color: var(--muted);
+      }
+      .note {
+        padding: 12px;
+        border-radius: 14px;
+        border: 1px dashed var(--line-strong);
+        background: rgba(255, 255, 255, 0.55);
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      .listBlock {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .listItem {
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.82);
+        border: 1px solid var(--line);
+      }
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 11px;
+        word-break: break-word;
       }
     </style>
   </head>
   <body>
-    <h1>Hacktech Safety</h1>
+    <div class="shell">
+      <section class="hero">
+        <div class="eyebrow">Safety workspace</div>
+        <h1>Hacktech Safety</h1>
+        <p>Notion-inspired review space for live conversation scans, extracted transcripts, and evidence-rich alerts.</p>
+      </section>
 
-    <div class="row">
-      <label>
-        <input id="enabled" type="checkbox" />
-        Extension enabled
-      </label>
-    </div>
+      <section class="section">
+        <div class="sectionTitle">Controls</div>
 
-    <div class="row">
-      <label for="backendBaseUrl">Backend base URL</label>
-      <input id="backendBaseUrl" type="text" value="http://127.0.0.1:8000" />
-    </div>
+        <div class="row">
+          <label class="toggle" for="enabled">
+            <span class="toggleText">
+              <strong>Extension enabled</strong>
+              <span>Continuously watch the active page for risky chat patterns.</span>
+            </span>
+            <input id="enabled" type="checkbox" />
+          </label>
+        </div>
 
-    <div class="row">
-      <label for="scanIntervalMinutes">Scan interval (minutes)</label>
-      <input id="scanIntervalMinutes" type="number" min="1" value="1" />
-    </div>
+        <div class="row">
+          <label for="backendBaseUrl">Backend base URL</label>
+          <input id="backendBaseUrl" type="text" value="http://127.0.0.1:8000" />
+        </div>
 
-    <div class="row">
-      <label for="warningThreshold">Warning threshold</label>
-      <input id="warningThreshold" type="number" min="0" max="100" value="40" />
-    </div>
+        <div class="row">
+          <label for="scanIntervalMinutes">Scan interval (minutes)</label>
+          <input id="scanIntervalMinutes" type="number" min="1" value="1" />
+        </div>
 
-    <button id="save">Save Settings</button>
-    <button id="scanNow" style="margin-top:8px;background:#0f766e;">Scan Current Tab Now</button>
-    <button id="openDemo" style="margin-top:8px;background:#7c3aed;">Open Demo Page</button>
+        <div class="row" style="margin-bottom: 14px;">
+          <label for="warningThreshold">Warning threshold</label>
+          <input id="warningThreshold" type="number" min="0" max="100" value="40" />
+        </div>
 
-    <div style="margin-top:12px" class="card">
-      <div><b>Last result</b></div>
-      <div id="lastResult" class="muted">No scans yet.</div>
-    </div>
+        <div class="actions">
+          <button id="save" class="primary">Save settings</button>
+          <button id="scanNow" class="secondary">Scan tab now</button>
+          <button id="openDemo" class="tertiary">Open demo page</button>
+        </div>
+      </section>
 
-    <div style="margin-top:12px" class="card muted">
-      Chromium demo: start the backend, load this folder as an unpacked extension, then click Open Demo Page.
-    </div>
+      <section class="card statusCard">
+        <div class="statusHeader">
+          <b>Last result</b>
+          <span id="resultPill" class="pill pillSafe">Idle</span>
+        </div>
+        <div id="lastResult" class="resultContent muted">No scans yet.</div>
+      </section>
 
-    <div style="margin-top:12px" class="card muted">
-      Debug view shows the extracted transcript, matched phrases, and the flagged messages used for scoring.
+      <section class="note">
+        Chromium demo: start the backend, load this folder as an unpacked extension, then click <b>Open demo page</b>.
+      </section>
+
+      <section class="note">
+        Debug view shows the extracted transcript, matched phrases, and the flagged messages used for scoring.
+      </section>
     </div>
 
     <script src="popup.js"></script>
