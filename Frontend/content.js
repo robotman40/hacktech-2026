@@ -368,18 +368,14 @@ function scoreInstagramConversationRoot(root) {
 }
 
 function findInstagramConversationRoot() {
-  // 1. Target the chat area, excluding the sidebar.
   const mainRoot = document.querySelector("div[role='main']");
   if (!mainRoot) return null;
 
-  // 2. Identify the chat window specifically
   const chatWindow = mainRoot.querySelector('div[role="presentation"]'); 
-  const rootToSearch = chatWindow || mainRoot;
+  const searchBase = chatWindow || mainRoot;
 
-  const candidates = new Set([rootToSearch]);
-  
-  // 3. Find all 'dir=auto' leaves to build candidate parent containers
-  const leaves = [...rootToSearch.querySelectorAll("[dir='auto']")].filter(
+  const candidates = new Set([searchBase]);
+  const leaves = [...searchBase.querySelectorAll("[dir='auto']")].filter(
     (node) =>
       node instanceof Element &&
       !node.querySelector("[dir='auto']") &&
@@ -392,7 +388,7 @@ function findInstagramConversationRoot() {
       leaf.closest("[role='listitem'], li, article, section, [role='list']") ||
       leaf.parentElement;
     let hops = 0;
-    while (cursor && cursor !== rootToSearch && hops < 5) {
+    while (cursor && cursor !== searchBase && hops < 5) {
       candidates.add(cursor);
       cursor = cursor.parentElement;
       hops += 1;
@@ -410,10 +406,9 @@ function findInstagramConversationRoot() {
     }
   }
 
-  // Ensure the best candidate actually looks like a chat
   if (!bestRoot || bestScore < 6) return null;
   return bestRoot;
-} // Function properly closed here
+} // Function closed properly here
 
 function extractInstagramMessages() {
   const activeConversationRoot = findInstagramConversationRoot();
