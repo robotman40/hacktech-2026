@@ -224,6 +224,7 @@ function collectUniqueMessages(nodes, source) {
 }
 
 function instagramIsSidebarOrNavNode(node) {
+  if (node.closest('div[role="link"]')) return true; // Notes and Inbox items are usually role="link"
   if (!(node instanceof Element)) return false;
   if (node.closest("nav, aside, header, [role='navigation']")) return true;
   const threadLink = node.closest("a[href*='/direct/t/']");
