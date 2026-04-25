@@ -144,6 +144,25 @@ RISK_RULES = [
     },
 ]
 
+_SOCIAL_DOMAINS: set[str] = {
+    # Major social networks
+    "facebook.com", "instagram.com", "twitter.com", "x.com", "tiktok.com",
+    "snapchat.com", "pinterest.com", "linkedin.com", "reddit.com", "tumblr.com",
+    "threads.net", "bsky.app", "mastodon.social",
+    # Messaging / chat
+    "discord.com", "telegram.org", "t.me", "whatsapp.com", "signal.org",
+    "slack.com", "messenger.com", "wechat.com", "line.me", "kik.com",
+    "viber.com", "skype.com",
+    # Email / webmail
+    "mail.google.com", "gmail.com", "outlook.live.com", "outlook.com",
+    "hotmail.com", "yahoo.com", "proton.me", "protonmail.com",
+    # Gaming / communities
+    "twitch.tv", "kick.com", "roblox.com", "xbox.com", "store.steampowered.com",
+    "steamcommunity.com", "discord.gg",
+    # Video / content sharing
+    "youtube.com", "youtu.be", "vimeo.com",
+}
+
 ROLE_WEIGHTS = {
     "sender": 1.0,
     "adult": 1.0,
@@ -505,6 +524,14 @@ def _fallback_evaluate(text: str, messages: list[dict[str, Any]] | None = None):
         "highest_risk_message": highest_risk_message
     }
 
+def _is_social_url(url: str) -> bool:
+    try:
+        from urllib.parse import urlparse
+        host = urlparse(url).hostname or ""
+        host = host.removeprefix("www.")
+        return host in _SOCIAL_DOMAINS or any(host.endswith("." + d) for d in _SOCIAL_DOMAINS)
+    except Exception:
+        return False
 
 def _normalize_result(payload: dict[str, Any]) -> dict[str, Any]:
     threats = payload.get("threats_detected") or []
@@ -671,6 +698,10 @@ def _call_k2_classifier(analysis_text: str, messages: list[dict[str, Any]], plat
     normalized = _normalize_result(payload)
     normalized["platform"] = platform or normalized.get("platform") or "generic"
     return normalized
+
+@router.post("/is-social")
+async def check_url(url: str) -> dict[str, bool]:
+    return {"is_social": _is_social_url(url)}
 
 @router.post("/evaluate")
 async def evaluate(request: fastapi.Request):
