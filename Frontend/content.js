@@ -367,17 +367,20 @@ function scoreInstagramConversationRoot(root) {
 }
 
 function findInstagramConversationRoot() {
-  const mainRoot = document.querySelector("[role='main']") || document.querySelector("main");
-  if (!(mainRoot instanceof Element)) return null;
+  // 1. Explicitly target the chat area, which is usually the second 'section' 
+  // or the 'main' element, while excluding the sidebar.
+  const mainRoot = document.querySelector("div[role='main']");
+  
+  if (!mainRoot) return null;
 
-  const candidates = new Set([mainRoot]);
-  const leaves = [...mainRoot.querySelectorAll("[dir='auto']")].filter(
-    (node) =>
-      node instanceof Element &&
-      !node.querySelector("[dir='auto']") &&
-      !instagramIsSidebarOrNavNode(node) &&
-      !node.closest(HT_UI_SEL),
-  );
+  // 2. Filter out the sidebar explicitly by checking if the element is 
+  // inside the left-hand navigation/inbox list
+  const isSidebar = (el) => el.closest('div[style*="width: 399px"], .x1mi7zjg, section > div:first-child');
+  
+  // Update your candidate search to ONLY look inside the main chat window
+  const chatWindow = mainRoot.querySelector('div[role="presentation"]'); 
+  return chatWindow || mainRoot;
+}
   for (const leaf of leaves) {
     let cursor =
       leaf.closest("[role='listitem'], li, article, section, [role='list']") ||
