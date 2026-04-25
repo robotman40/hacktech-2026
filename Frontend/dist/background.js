@@ -1,1 +1,0 @@
-(function(){"use strict";chrome.runtime.onMessage.addListener((t,n,o)=>{const e=t;return(e==null?void 0:e.type)==="setActionBadge"&&typeof e.text=="string"&&(chrome.action.setBadgeText({text:e.text}),e.text.length>0&&chrome.action.setBadgeBackgroundColor({color:[220,38,38,255]})),o(),!1})})();
