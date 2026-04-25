@@ -162,6 +162,8 @@ _SOCIAL_DOMAINS: set[str] = {
     "steamcommunity.com", "discord.gg",
     # Video / content sharing
     "youtube.com", "youtu.be", "vimeo.com",
+    # Demo
+    "127.0.0.1", "localhost",
 }
 
 ROLE_WEIGHTS = {
