@@ -1,4 +1,5 @@
 let lastConversationSignature = "";
+let lastObservedHref = "";
 let lastBannerAt = 0;
 let lastBannerSignature = "";
 let flagHoverPopover = null;
@@ -150,6 +151,10 @@ function conversationSignature(messages) {
   });
 }
 
+function normalizedHref() {
+  return String(window.location.href || "").split("#")[0] || "";
+}
+
 function hostname() {
   return window.location.hostname.toLowerCase();
 }
@@ -218,27 +223,222 @@ function collectUniqueMessages(nodes, source) {
   return messages;
 }
 
-function extractInstagramMessages() {
-  const results = [];
-  const messageContainers = document.querySelectorAll(
-    "[role='main'] [role='listitem'], main li, main article div",
+function instagramIsSidebarOrNavNode(node) {
+  if (!(node instanceof Element)) return false;
+  if (node.closest("nav, aside, header, [role='navigation']")) return true;
+  const threadLink = node.closest("a[href*='/direct/t/']");
+  if (threadLink) return true;
+  return false;
+}
+
+function isInstagramInboxDesktopLayout() {
+  return (
+    pagePlatform() === "instagram" &&
+    /\/direct\/(inbox|t\/)/.test(window.location.pathname || "") &&
+    window.innerWidth >= 900
   );
-  for (const container of messageContainers) {
-    const leaves = [...container.querySelectorAll("[dir='auto']")].filter(
-      (node) => !node.querySelector("[dir='auto']"),
-    );
-    for (const leaf of leaves) {
-      const aria = normalizeText(
-        container.getAttribute("aria-label") ||
-          leaf.getAttribute("aria-label") ||
-          "",
-      );
-      let speaker = inferSpeaker(leaf);
-      if (aria.toLowerCase().includes("you sent")) speaker = "sender";
-      if (aria.toLowerCase().includes("sent by")) speaker = "receiver";
-      const message = buildMessage(leaf, { speaker, source: "instagram" });
-      if (message) results.push(message);
+}
+
+function isLikelyInstagramNameLabel(text) {
+  const t = normalizeText(text || "");
+  if (!t || t.length > 64) return false;
+  if (/^your note$/i.test(t)) return true;
+  if (/[,!?;:]/.test(t)) return false;
+  const words = t.split(/\s+/).filter(Boolean);
+  if (!words.length || words.length > 4) return false;
+  const nameishWords = words.every((w) => /^[\p{L}\p{N}_.'\-•🫧⭐✨💫𓆡𓇼]+$/u.test(w));
+  return nameishWords;
+}
+
+function instagramMessageContainer(node) {
+  if (!(node instanceof Element)) return null;
+  return (
+    node.closest("[aria-label*='you sent' i], [aria-label*='sent by' i]") ||
+    node.closest("[role='listitem'], [role='row'], li, article")
+  );
+}
+
+function instagramMessageAria(node) {
+  const container = instagramMessageContainer(node);
+  return normalizeText(
+    [
+      container?.getAttribute("aria-label") || "",
+      node?.getAttribute?.("aria-label") || "",
+      node?.closest?.("[aria-label]")?.getAttribute?.("aria-label") || "",
+    ].join(" "),
+  ).toLowerCase();
+}
+
+function isLikelyInstagramMessageLeaf(node) {
+  if (!(node instanceof Element)) return false;
+  if (instagramIsSidebarOrNavNode(node)) return false;
+  if (node.closest(HT_UI_SEL)) return false;
+  if (node.closest("header")) return false;
+
+  const text = normalizeText(node.innerText || node.textContent);
+  if (!text) return false;
+  if (isLikelyNonChatNoise(text)) return false;
+  if (isLikelyInstagramUiChromeText(text)) return false;
+
+  const container = instagramMessageContainer(node);
+  if (!(container instanceof Element)) return false;
+  if (instagramIsSidebarOrNavNode(container)) return false;
+  if (container.closest("header")) return false;
+  if (container.querySelector("a[href*='/direct/t/']")) return false;
+
+  const rect = node.getBoundingClientRect();
+  if (rect.width === 0 || rect.height === 0) return false;
+
+  const aria = instagramMessageAria(node);
+  const hasExplicitMessageAria = aria.includes("you sent") || aria.includes("sent by");
+  if (isLikelyInstagramNameLabel(text) && !hasExplicitMessageAria) return false;
+
+  if (!hasExplicitMessageAria) {
+    const wordCount = text.split(/\s+/).filter(Boolean).length;
+    if (text.length < 8 && wordCount <= 2) return false;
+    if (isInstagramInboxDesktopLayout()) {
+      if (rect.top < 220) return false;
+      if (rect.right < window.innerWidth * 0.35) return false;
     }
+  }
+
+  return true;
+}
+
+function isLikelyInstagramThreadListLeaf(node) {
+  if (!(node instanceof Element)) return false;
+  if (node.closest("a, button, [role='button'], [role='link']")) return true;
+  if (node.closest("header")) return true;
+  const text = normalizeText(node.innerText || node.textContent);
+  if (isLikelyInstagramUiChromeText(text)) return true;
+  if (isLikelyInstagramNameLabel(text)) return true;
+  if (isInstagramInboxDesktopLayout()) {
+    const rect = node.getBoundingClientRect();
+    if (rect.right < window.innerWidth * 0.45) return true;
+    if (isLikelyInstagramNameLabel(text) && rect.top < 240) return true;
+  }
+  return false;
+}
+
+function scoreInstagramConversationRoot(root) {
+  if (!(root instanceof Element)) return Number.NEGATIVE_INFINITY;
+  if (instagramIsSidebarOrNavNode(root)) return Number.NEGATIVE_INFINITY;
+
+  const leaves = [...root.querySelectorAll("[dir='auto']")].filter((node) => {
+    if (!(node instanceof Element)) return false;
+    if (instagramIsSidebarOrNavNode(node)) return false;
+    if (node.closest(HT_UI_SEL)) return false;
+    if (node.querySelector("[dir='auto']")) return false;
+    return true;
+  });
+
+  if (!leaves.length) return Number.NEGATIVE_INFINITY;
+
+  let score = 0;
+  const messageLike = leaves.filter((leaf) => isLikelyInstagramMessageLeaf(leaf));
+  score += Math.min(14, messageLike.length);
+
+  const hasComposer = Boolean(
+    root.querySelector("textarea, [contenteditable='true'][role='textbox'], [aria-label*='message' i]"),
+  );
+  if (hasComposer) score += 8;
+
+  const senderHints = leaves.filter((leaf) => {
+    const aria = `${leaf.getAttribute("aria-label") || ""} ${leaf.closest("[aria-label]")?.getAttribute("aria-label") || ""}`.toLowerCase();
+    return aria.includes("you sent") || aria.includes("sent by");
+  }).length;
+  score += Math.min(6, senderHints * 2);
+
+  const threadLinks = root.querySelectorAll("a[href*='/direct/t/']").length;
+  if (threadLinks >= 2) score -= Math.min(10, threadLinks * 2);
+
+  const rect = root.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  if (isInstagramInboxDesktopLayout()) {
+    if (centerX < window.innerWidth * 0.55) score -= 18;
+    else score += 6;
+  }
+
+  const explicitMessageAria = root.querySelectorAll("[aria-label*='you sent' i], [aria-label*='sent by' i]").length;
+  score += Math.min(10, explicitMessageAria * 2);
+  if (!hasComposer && explicitMessageAria === 0) score -= 10;
+
+  return score;
+}
+
+function findInstagramConversationRoot() {
+  const mainRoot = document.querySelector("[role='main']") || document.querySelector("main");
+  if (!(mainRoot instanceof Element)) return null;
+
+  const candidates = new Set([mainRoot]);
+  const leaves = [...mainRoot.querySelectorAll("[dir='auto']")].filter(
+    (node) =>
+      node instanceof Element &&
+      !node.querySelector("[dir='auto']") &&
+      !instagramIsSidebarOrNavNode(node) &&
+      !node.closest(HT_UI_SEL),
+  );
+  for (const leaf of leaves) {
+    let cursor =
+      leaf.closest("[role='listitem'], li, article, section, [role='list']") ||
+      leaf.parentElement;
+    let hops = 0;
+    while (cursor && cursor !== mainRoot && hops < 5) {
+      candidates.add(cursor);
+      cursor = cursor.parentElement;
+      hops += 1;
+    }
+  }
+
+  let bestRoot = null;
+  let bestScore = Number.NEGATIVE_INFINITY;
+
+  for (const candidate of candidates) {
+    const score = scoreInstagramConversationRoot(candidate);
+    if (score > bestScore) {
+      bestScore = score;
+      bestRoot = candidate;
+    }
+  }
+
+  if (!bestRoot || bestScore < 6) return null;
+  return bestRoot;
+}
+
+function extractInstagramMessages() {
+  const activeConversationRoot = findInstagramConversationRoot();
+  if (!activeConversationRoot) return [];
+
+  const results = [];
+  const leaves = [...activeConversationRoot.querySelectorAll("[dir='auto']")].filter(
+    (node) =>
+      node instanceof Element &&
+      !node.querySelector("[dir='auto']") &&
+      !instagramIsSidebarOrNavNode(node) &&
+      !isLikelyInstagramThreadListLeaf(node) &&
+      isLikelyInstagramMessageLeaf(node) &&
+      !node.closest(HT_UI_SEL),
+  );
+
+  for (const leaf of leaves) {
+    const container = instagramMessageContainer(leaf);
+    if (!container) continue;
+    if (instagramIsSidebarOrNavNode(container)) continue;
+    const text = normalizeText(leaf.innerText || leaf.textContent);
+    if (isLikelyInstagramUiChromeText(text)) continue;
+    const aria = instagramMessageAria(leaf);
+    if (
+      isLikelyInstagramNameLabel(text) &&
+      !aria.includes("you sent") &&
+      !aria.includes("sent by")
+    ) {
+      continue;
+    }
+    let speaker = inferSpeaker(leaf);
+    if (aria.includes("you sent") || aria.includes("sent by you")) speaker = "sender";
+    if (aria.includes("sent by")) speaker = "receiver";
+    const message = buildMessage(leaf, { speaker, source: "instagram" });
+    if (message) results.push(message);
   }
   return results;
 }
@@ -810,10 +1010,24 @@ function pageTextForScanning() {
   return stripFrameworkNoiseFromVisibleText(raw);
 }
 
+function conversationTextForScanning(messages) {
+  const list = Array.isArray(messages) ? messages : [];
+  return list
+    .map((item) => `${String(item?.speaker || "unknown")}: ${normalizeText(item?.text || "")}`)
+    .filter((line) => line && !line.endsWith(":"))
+    .join("\n")
+    .trim();
+}
+
 function scanPage(noSignatureCheck = false) {
-  const html = currentPageHtml();
-  const pageText = pageTextForScanning();
+  const platform = pagePlatform();
   const messages = extractConversationMessages();
+  if (platform === "instagram" && !messages.length && !noSignatureCheck) return;
+
+  const html = currentPageHtml();
+  const conversationText = conversationTextForScanning(messages);
+  const pageText =
+    platform === "instagram" ? conversationText : pageTextForScanning();
   const signature = conversationSignature(messages);
   if (signature === lastConversationSignature && !noSignatureCheck) return;
   lastConversationSignature = signature;
@@ -825,7 +1039,7 @@ function scanPage(noSignatureCheck = false) {
       pageUrl: window.location.href,
       html,
       pageText,
-      platform: pagePlatform(),
+      platform,
       messages,
     },
     (response) => {
@@ -849,6 +1063,11 @@ function scanPage(noSignatureCheck = false) {
   );
 }
 
+function primeConversationSignature() {
+  const messages = extractConversationMessages();
+  lastConversationSignature = conversationSignature(messages);
+}
+
 chrome.runtime.onMessage.addListener((message) => {
   if (message?.type === "TRIGGER_SCAN") {
     console.log("[kandor] Manual or alarm-triggered scan");
@@ -866,9 +1085,24 @@ chrome.runtime.onMessage.addListener((message) => {
 });
 
 console.log("[kandor] Content script loaded on", window.location.href);
-window.setTimeout(scanPage, 1500);
+lastObservedHref = normalizedHref();
+if (pagePlatform() === "instagram") {
+  primeConversationSignature();
+} else {
+  window.setTimeout(scanPage, 1500);
+}
 const observer = new MutationObserver((mutations) => {
   if (suppressMutationScan > 0) return;
+
+  const hrefNow = normalizedHref();
+  if (hrefNow !== lastObservedHref) {
+    lastObservedHref = hrefNow;
+    if (pagePlatform() === "instagram") {
+      primeConversationSignature();
+      return;
+    }
+  }
+
   const onlyExtensionUiChanges = mutations.every((mutation) => {
     const target =
       mutation.target instanceof Element

@@ -28,6 +28,10 @@ async function getTabResults() {
   return result[RESULTS_KEY] || {};
 }
 
+async function clearAllResults() {
+  await chrome.storage.local.set({ [RESULTS_KEY]: {} });
+}
+
 async function getLastResult(tabId) {
   if (!Number.isInteger(tabId)) return null;
   const results = await getTabResults();
@@ -230,6 +234,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       sendResponse({ success: true, result, tabId: tab.id });
     });
+    return true;
+  }
+
+  if (message?.type === "CLEAR_ALL_RESULTS") {
+    clearAllResults().then(() => sendResponse({ success: true }));
     return true;
   }
 

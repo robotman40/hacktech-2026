@@ -186,4 +186,12 @@ document.getElementById("openDemo").addEventListener("click", () => {
   chrome.runtime.sendMessage({ type: "OPEN_DEMO_PAGE" });
 });
 
+document.getElementById("clearReports").addEventListener("click", () => {
+  chrome.runtime.sendMessage({ type: "CLEAR_ALL_RESULTS" }, () => {
+    updateResultPill(null);
+    document.getElementById("lastResult").innerHTML =
+      `<div class="mutedLine">No saved report for this tab yet.</div>`;
+  });
+});
+
 loadView();
