@@ -151,7 +151,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "RUN_MANUAL_SCAN") {
     chrome.tabs.query({ active: true, currentWindow: true }).then((tabs) => {
       const tab = tabs[0];
-      if (tab?.id) chrome.tabs.sendMessage(tab.id, { type: "TRIGGER_SCAN" }, () => sendResponse({ success: true }));
+      if (tab?.id) chrome.tabs.sendMessage(tab.id, { type: "TRIGGER_SCAN_NO_SIGNATURE_CHECK" }, () => sendResponse({ success: true }));
       else sendResponse({ success: false, error: "No active tab" });
     });
     return true;

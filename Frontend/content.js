@@ -739,12 +739,12 @@ function pageTextForScanning() {
   return stripFrameworkNoiseFromVisibleText(raw);
 }
 
-function scanPage() {
+function scanPage(noSignatureCheck=false) {
   const html = currentPageHtml();
   const pageText = pageTextForScanning();
   const messages = extractConversationMessages();
   const signature = conversationSignature(messages);
-  if (signature === lastConversationSignature) return;
+  if (signature === lastConversationSignature && !noSignatureCheck) return;
   lastConversationSignature = signature;
   console.log("[Hacktech Safety] Scanning page", window.location.href, signature);
 
@@ -779,6 +779,13 @@ chrome.runtime.onMessage.addListener((message) => {
     scanPage();
   }
 });
+
+chrome.runtime.onMessage.addListener((message) => {
+  if (message?.type === "TRIGGER_SCAN_NO_SIGNATURE_CHECK") {
+    console.log("[Hacktech Safety] Manual or alarm-triggered scan without signature check");
+    scanPage(noSignatureCheck=true);
+  }
+})
 
 console.log("[Hacktech Safety] Content script loaded on", window.location.href);
 window.setTimeout(scanPage, 1500);

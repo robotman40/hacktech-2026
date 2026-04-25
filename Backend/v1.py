@@ -769,6 +769,11 @@ async def evaluate(request: fastapi.Request):
 
     confidence reflects how sure you are of the rating given the available context. Short snippets warrant lower confidence.
 
+    The CONVERSATION section contains structured messages extracted from the page — these are the human chat turns you must evaluate.
+    The PAGE TEXT section contains the raw scraped text of the page, which may include UI chrome, navigation elements, and boilerplate mixed with message content.
+    If the CONVERSATION section is non-empty, treat it as authoritative for identifying speakers and messages; use PAGE TEXT only to fill gaps or recover messages not captured by the parser.
+    Do NOT treat UI labels, timestamp strings, like/reaction counts, or navigation text as message content
+
     Here is the extracted conversation transcript if available:\n\n""" + _format_messages(messages) + "\n\nHere is the page text to evaluate:\n\n" + analysis_text
     gemini_client = _get_client()
     if gemini_client is None:
