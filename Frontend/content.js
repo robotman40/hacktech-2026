@@ -397,7 +397,7 @@ function findInstagramConversationRoot() {
   let bestRoot = null;
   let bestScore = Number.NEGATIVE_INFINITY;
 
-  for (const candidate of candidates) {
+ for (const candidate of candidates) {
     const score = scoreInstagramConversationRoot(candidate);
     if (score > bestScore) {
       bestScore = score;
@@ -405,9 +405,10 @@ function findInstagramConversationRoot() {
     }
   }
 
+  // THESE LINES MUST BE INSIDE THE CURLY BRACE
   if (!bestRoot || bestScore < 6) return null;
-  return bestRoot;
-}
+  return bestRoot; 
+    } // <--- This bracket closes findInstagramConversationRoot
 
 function extractInstagramMessages() {
   const activeConversationRoot = findInstagramConversationRoot();
