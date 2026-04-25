@@ -23,6 +23,14 @@ load_dotenv()
 router = fastapi.APIRouter()
 client = None
 K2_API_URL = "https://api.k2think.ai/v1/chat/completions"
+K2_HEADERS = {
+    "accept": "application/json",
+    "Content-Type": "application/json",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
+    "Origin": "https://www.k2think.ai",
+    "Referer": "https://www.k2think.ai/",
+}
+RESULT_CACHE: dict[str, dict[str, Any]] = {}
 _SOCIAL_DOMAINS: set[str] = {
     "instagram.com",
     "facebook.com",
@@ -115,6 +123,25 @@ FUZZY_PLATFORM_TERMS = [
     "discord",
     "signal",
 ]
+
+THREAT_LABEL_ALIASES = {
+    "violent threat": "THREATS_COERCION",
+    "threat": "THREATS_COERCION",
+    "coercion": "THREATS_COERCION",
+    "harassment": "HATE_HARASSMENT",
+    "hate": "HATE_HARASSMENT",
+    "hate speech": "HATE_HARASSMENT",
+    "grooming": "GROOMING",
+    "sexual content": "SEXUAL_CONTENT",
+    "pii solicitation": "PII_SOLICITATION",
+    "personal info request": "PII_SOLICITATION",
+    "platform migration": "PLATFORM_MIGRATION",
+    "move off platform": "PLATFORM_MIGRATION",
+    "self harm": "SELF_HARM_CONTENT",
+    "self-harm": "SELF_HARM_CONTENT",
+    "financial scam": "FINANCIAL_SCAM",
+    "obfuscation": "OBFUSCATION",
+}
 
 SEVERE_THREAT_TERMS = [
     "i will kill you",
@@ -267,18 +294,110 @@ def _extract_json_object(text: str) -> dict[str, Any] | None:
     raw = str(text or "").strip()
     if not raw:
         return None
+    raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL | re.IGNORECASE)
     raw = re.sub(r"^```(?:json)?\s*", "", raw)
     raw = re.sub(r"\s*```$", "", raw)
     try:
         return json.loads(raw)
     except json.JSONDecodeError:
-        match = re.search(r"\{.*\}", raw, re.DOTALL)
-        if not match:
-            return None
-        try:
-            return json.loads(match.group(0))
-        except json.JSONDecodeError:
-            return None
+        candidates: list[str] = []
+        for start in [m.start() for m in re.finditer(r"\{", raw)]:
+            end = _skip_balanced_json_object(raw, start)
+            if end > start:
+                candidates.append(raw[start:end])
+        preferred_keys = {"danger_rating", "confidence", "confidence_score", "recommended_action", "threats_detected"}
+        parsed_candidates: list[dict[str, Any]] = []
+        for candidate in reversed(candidates):
+            try:
+                parsed = json.loads(candidate)
+                if isinstance(parsed, dict):
+                    parsed_candidates.append(parsed)
+                    if preferred_keys & set(parsed.keys()):
+                        return parsed
+            except json.JSONDecodeError:
+                continue
+        for parsed in parsed_candidates:
+            return parsed
+        return None
+
+
+def _coerce_int_score(value: Any, default: int = 0) -> int:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float)):
+        return int(value)
+    text = str(value or "").strip().lower()
+    if not text:
+        return default
+    mapping = {
+        "low": 25,
+        "medium": 55,
+        "moderate": 55,
+        "high": 82,
+        "critical": 95,
+        "severe": 95,
+    }
+    if text in mapping:
+        return mapping[text]
+    match = re.search(r"\d+", text)
+    if match:
+        return int(match.group(0))
+    return default
+
+
+def _coerce_action(value: Any, danger_rating: int) -> str:
+    text = str(value or "").strip().lower()
+    if text in {"none", "monitor", "warn_user", "block_and_alert_guardian"}:
+        return text
+    if "block" in text or "guardian" in text or "report" in text:
+        return "block_and_alert_guardian"
+    if "warn" in text or "alert" in text:
+        return "warn_user"
+    if "monitor" in text or "review" in text:
+        return "monitor"
+    if danger_rating >= 75:
+        return "block_and_alert_guardian"
+    if danger_rating >= 40:
+        return "warn_user"
+    if danger_rating >= 20:
+        return "monitor"
+    return "none"
+
+
+def _normalize_threat_label(value: Any) -> str | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    normalized = text.upper().replace("-", "_").replace(" ", "_")
+    if normalized in {
+        "GROOMING",
+        "SEXUAL_CONTENT",
+        "PII_SOLICITATION",
+        "PLATFORM_MIGRATION",
+        "THREATS_COERCION",
+        "SELF_HARM_CONTENT",
+        "HATE_HARASSMENT",
+        "FINANCIAL_SCAM",
+        "OBFUSCATION",
+    }:
+        return normalized
+    alias = THREAT_LABEL_ALIASES.get(str(value or "").strip().lower())
+    return alias
+
+
+def _analysis_cache_key(platform: str, messages: list[dict[str, Any]], analysis_text: str) -> str:
+    payload = {
+        "platform": platform,
+        "messages": [
+            {
+                "speaker": str(item.get("speaker") or "unknown"),
+                "text": str(item.get("text") or ""),
+            }
+            for item in messages
+        ],
+        "analysis_text": str(analysis_text or ""),
+    }
+    return json.dumps(payload, sort_keys=True, ensure_ascii=False)
 
 def _strip_html_tags(html: str) -> str:
     soup = BeautifulSoup(html, "lxml")
@@ -758,6 +877,11 @@ def _normalize_result(payload: dict[str, Any]) -> dict[str, Any]:
     threats = payload.get("threats_detected") or []
     if not isinstance(threats, list):
         threats = [str(threats)]
+    normalized_threats = []
+    for item in threats:
+        mapped = _normalize_threat_label(item)
+        if mapped and mapped not in normalized_threats:
+            normalized_threats.append(mapped)
 
     flagged_phrases = payload.get("flagged_phrases") or []
     if not isinstance(flagged_phrases, list):
@@ -767,9 +891,15 @@ def _normalize_result(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(flagged_messages, list):
         flagged_messages = []
 
-    recommended_action = str(payload.get("recommended_action") or "none")
-    if recommended_action not in {"none", "monitor", "warn_user", "block_and_alert_guardian"}:
-        recommended_action = "monitor"
+    danger_rating = max(0, min(100, _coerce_int_score(payload.get("danger_rating", 0), 0)))
+    confidence_score = max(
+        0,
+        min(
+            100,
+            _coerce_int_score(payload.get("confidence_score", payload.get("confidence", 0)), 0),
+        ),
+    )
+    recommended_action = _coerce_action(payload.get("recommended_action"), danger_rating)
 
     highest_risk_message = payload.get("highest_risk_message")
     if highest_risk_message is not None:
@@ -778,18 +908,10 @@ def _normalize_result(payload: dict[str, Any]) -> dict[str, Any]:
             highest_risk_message = None
 
     return {
-        "danger_rating": max(0, min(100, int(payload.get("danger_rating", 0) or 0))),
-        "confidence_score": max(
-            0,
-            min(
-                100,
-                int(
-                    payload.get("confidence_score", payload.get("confidence", 0)) or 0
-                ),
-            ),
-        ),
+        "danger_rating": danger_rating,
+        "confidence_score": confidence_score,
         "evaluation": str(payload.get("evaluation") or "No evaluation returned."),
-        "threats_detected": [str(item) for item in threats],
+        "threats_detected": normalized_threats,
         "flagged_phrases": [str(item) for item in flagged_phrases[:6]],
         "flagged_messages": [
             {
@@ -810,40 +932,53 @@ def _normalize_result(payload: dict[str, Any]) -> dict[str, Any]:
 
 def _merge_with_fallback(primary: dict[str, Any], fallback: dict[str, Any]) -> dict[str, Any]:
     merged = dict(primary)
-    if not merged.get("threats_detected"):
-        merged["threats_detected"] = fallback.get("threats_detected", [])
+    merged_threats = []
+    for item in (merged.get("threats_detected") or []) + (fallback.get("threats_detected") or []):
+        if item not in merged_threats:
+            merged_threats.append(item)
+    merged["threats_detected"] = merged_threats
     if not merged.get("flagged_phrases"):
         merged["flagged_phrases"] = fallback.get("flagged_phrases", [])
     if not merged.get("flagged_messages"):
         merged["flagged_messages"] = fallback.get("flagged_messages", [])
     if not merged.get("highest_risk_message"):
         merged["highest_risk_message"] = fallback.get("highest_risk_message")
-    if merged.get("recommended_action") in {None, "", "none"} and fallback.get("recommended_action") not in {None, ""}:
-        merged["recommended_action"] = fallback.get("recommended_action")
+    merged["danger_rating"] = max(int(merged.get("danger_rating") or 0), int(fallback.get("danger_rating") or 0))
+    merged["confidence_score"] = max(int(merged.get("confidence_score") or 0), int(fallback.get("confidence_score") or 0))
+    action_rank = {
+        "none": 0,
+        "monitor": 1,
+        "warn_user": 2,
+        "block_and_alert_guardian": 3,
+    }
+    primary_action = str(merged.get("recommended_action") or "none")
+    fallback_action = str(fallback.get("recommended_action") or "none")
+    merged["recommended_action"] = (
+        primary_action
+        if action_rank.get(primary_action, 0) >= action_rank.get(fallback_action, 0)
+        else fallback_action
+    )
+    if not merged.get("evaluation"):
+        merged["evaluation"] = fallback.get("evaluation")
     return merged
 
 
 def _k2_prompt(analysis_text: str, messages: list[dict[str, Any]], platform: str) -> str:
     return (
-        "You are a fast child-safety classifier for browser chat scans.\n"
-        "Return only JSON with this schema:\n"
+        "Classify the chat for child-safety risk.\n"
+        "Return only one compact JSON object with exactly these keys:\n"
         "{"
         '"danger_rating": 0, '
         '"confidence": 0, '
         '"threats_detected": [], '
-        '"flagged_phrases": [], '
-        '"flagged_messages": [{"speaker":"sender","text":"...", "reasons":[], "phrases":[], "score":0}], '
         '"evaluation": "...", '
         '"recommended_action": "none", '
-        '"highest_risk_message": "", '
         f'"platform": "{platform}"'
         "}\n"
-        "Allowed recommended_action values: none, monitor, warn_user, block_and_alert_guardian.\n"
-        "Threat labels must come only from: GROOMING, SEXUAL_CONTENT, PII_SOLICITATION, PLATFORM_MIGRATION, "
-        "THREATS_COERCION, SELF_HARM_CONTENT, HATE_HARASSMENT, FINANCIAL_SCAM, OBFUSCATION.\n"
-        "Treat secrecy, moving to another app, requests for address/location/school, predatory age interest, hate slurs, "
-        "and coercive pressure as strong risk signals.\n"
-        "Favor concise evidence and keep evaluation to 1-2 sentences.\n\n"
+        "Use integers 0-100 for danger_rating and confidence.\n"
+        "Use only these threat labels: GROOMING, SEXUAL_CONTENT, PII_SOLICITATION, PLATFORM_MIGRATION, THREATS_COERCION, SELF_HARM_CONTENT, HATE_HARASSMENT, FINANCIAL_SCAM, OBFUSCATION.\n"
+        "Use only these actions: none, monitor, warn_user, block_and_alert_guardian.\n"
+        "Keep evaluation under 20 words. No explanation outside JSON. No markdown. No preamble. No chain-of-thought.\n"
         "Transcript:\n"
         f"{_format_messages(messages)}\n\n"
         "Page text:\n"
@@ -862,7 +997,7 @@ def _call_k2_classifier(analysis_text: str, messages: list[dict[str, Any]], plat
         "messages": [
             {
                 "role": "system",
-                "content": "Return strict JSON only. No markdown fences. No extra text.",
+                "content": "Return strict JSON only. No markdown fences. No extra text. No chain-of-thought. Be concise.",
             },
             {
                 "role": "user",
@@ -870,21 +1005,22 @@ def _call_k2_classifier(analysis_text: str, messages: list[dict[str, Any]], plat
             },
         ],
         "temperature": 0.1,
+        "response_format": {"type": "json_object"},
+        "max_tokens": 160,
     }
 
     request = urllib.request.Request(
         K2_API_URL,
         data=json.dumps(payload).encode("utf-8"),
         headers={
-            "accept": "application/json",
+            **K2_HEADERS,
             "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
         },
         method="POST",
     )
 
     try:
-        with urllib.request.urlopen(request, timeout=6) as response:
+        with urllib.request.urlopen(request, timeout=20) as response:
             raw = response.read().decode("utf-8")
     except urllib.error.HTTPError:
         logging.exception("K2 HTTP request failed")
@@ -893,25 +1029,18 @@ def _call_k2_classifier(analysis_text: str, messages: list[dict[str, Any]], plat
         logging.exception("K2 request failed")
         return None
 
-    payload = _extract_json_object(raw)
-    if not payload:
-        payload = _extract_json_object(
-            (
-                json.loads(raw)
-                .get("choices", [{}])[0]
-                .get("message", {})
-                .get("content", "")
-            )
-            if raw.strip().startswith("{")
-            else raw
-        )
-    if not payload and raw.strip().startswith("{"):
-        try:
-            parsed_raw = json.loads(raw)
+    payload = None
+    try:
+        parsed_raw = json.loads(raw)
+        if isinstance(parsed_raw, dict) and "choices" in parsed_raw:
             content = parsed_raw.get("choices", [{}])[0].get("message", {}).get("content", "")
             payload = _extract_json_object(content)
-        except Exception:
-            payload = None
+        elif isinstance(parsed_raw, dict) and any(
+            key in parsed_raw for key in ["danger_rating", "confidence", "confidence_score", "recommended_action"]
+        ):
+            payload = parsed_raw
+    except json.JSONDecodeError:
+        payload = _extract_json_object(raw)
 
     if not payload:
         return None
@@ -955,6 +1084,10 @@ async def evaluate(request: fastapi.Request):
     stripped_html = _strip_html_tags(html) if html else ""
     analysis_text = page_text.strip() or _format_messages(messages) or stripped_html
     analysis_text = _strip_meta_flight_blobs(analysis_text)
+    cache_key = _analysis_cache_key(platform, messages, analysis_text)
+    cached_result = RESULT_CACHE.get(cache_key)
+    if cached_result is not None:
+        return dict(cached_result)
     fallback = _fallback_evaluate(analysis_text, messages)
     fallback["platform"] = platform
 
@@ -964,7 +1097,8 @@ async def evaluate(request: fastapi.Request):
         confidence = int(k2_result.get("confidence_score") or 0)
         danger = int(k2_result.get("danger_rating") or 0)
         if (danger <= 20 and confidence >= 60) or (danger >= 70 and confidence >= 70):
-            return k2_result
+            RESULT_CACHE[cache_key] = dict(k2_result)
+            return dict(k2_result)
 
     prompt = """You are a child safety classifier evaluating direct messages for signs of harm to minors. Assume the recipient is a child (under 13) unless explicitly stated otherwise.
 
@@ -1025,7 +1159,9 @@ async def evaluate(request: fastapi.Request):
     Here is the extracted conversation transcript if available:\n\n""" + _format_messages(messages) + "\n\nHere is the page text to evaluate:\n\n" + analysis_text
     gemini_client = _get_client()
     if gemini_client is None:
-        return k2_result or fallback
+        result = k2_result or fallback
+        RESULT_CACHE[cache_key] = dict(result)
+        return dict(result)
 
     try:
         response = gemini_client.models.generate_content(
@@ -1110,9 +1246,12 @@ async def evaluate(request: fastapi.Request):
                 merged["flagged_messages"] = k2_result.get("flagged_messages", [])
             if not merged.get("flagged_phrases"):
                 merged["flagged_phrases"] = k2_result.get("flagged_phrases", [])
-        return merged
+        RESULT_CACHE[cache_key] = dict(merged)
+        return dict(merged)
     except json.JSONDecodeError:
-        return k2_result or fallback
+        result = k2_result or fallback
+        RESULT_CACHE[cache_key] = dict(result)
+        return dict(result)
 
 
 class IsSocialRequest(BaseModel):
