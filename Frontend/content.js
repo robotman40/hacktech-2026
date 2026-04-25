@@ -5,7 +5,9 @@ let lastBannerSignature = "";
 let flagHoverPopover = null;
 let flagHoverHideTimer = null;
 let suppressMutationScan = 0;
+let initialScanRetries = 0;
 const MAX_MESSAGES = 24;
+const MAX_INITIAL_SCAN_RETRIES = 4;
 const KANDOR_FONTS_CSS_URL =
   "https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap";
 
@@ -20,6 +22,8 @@ const HT_UI_SEL = [
   "#hacktech-open-sans",
   ".hacktech-flag-highlight",
 ].join(", ");
+const INSTAGRAM_SIDEBAR_LIST_LABELS =
+  /^(conversations|chats|direct|inbox|messages inbox)/i;
 
 const APP_ALERT_TITLE =
   typeof KANDOR_APP_ALERT_TITLE !== "undefined" && KANDOR_APP_ALERT_TITLE
@@ -223,6 +227,52 @@ function collectUniqueMessages(nodes, source) {
   return messages;
 }
 
+function getInstagramInputElement() {
+  return (
+    document.querySelector('[contenteditable="true"][aria-placeholder]') ||
+    document.querySelector('[contenteditable="true"][aria-label*="message" i]') ||
+    document.querySelector('[role="textbox"][contenteditable="true"]') ||
+    document.querySelector("textarea[placeholder*='Message' i]")
+  );
+}
+
+function listLooksLikeInstagramSidebar(list) {
+  if (!(list instanceof Element)) return false;
+  const label = normalizeText(list.getAttribute("aria-label") || "");
+  if (INSTAGRAM_SIDEBAR_LIST_LABELS.test(label)) return true;
+  return !!list.querySelector('a[href*="/direct/t/"], a[href*="/t/"]');
+}
+
+function getInstagramActiveThreadRoot() {
+  const input = getInstagramInputElement();
+  if (!input) return null;
+
+  let cursor = input.parentElement;
+  while (cursor && cursor !== document.body) {
+    const list =
+      cursor.matches?.('[role="list"]')
+        ? cursor
+        : cursor.querySelector?.('[role="list"]');
+    if (list instanceof Element) {
+      if (listLooksLikeInstagramSidebar(list)) {
+        cursor = cursor.parentElement;
+        continue;
+      }
+      if (list.querySelector('[dir="auto"]')) return list;
+    }
+    cursor = cursor.parentElement;
+  }
+
+  const allLists = document.querySelectorAll('[role="list"]');
+  for (const list of allLists) {
+    if (!(list instanceof Element)) continue;
+    if (listLooksLikeInstagramSidebar(list)) continue;
+    if (list.querySelector('[dir="auto"]')) return list;
+  }
+
+  return null;
+}
+
 function instagramIsSidebarOrNavNode(node) {
   if (!(node instanceof Element)) return false;
   if (node.closest("nav, aside, header, [role='navigation']")) return true;
@@ -278,7 +328,12 @@ function isLikelyInstagramMessageLeaf(node) {
   const text = normalizeText(node.innerText || node.textContent);
   if (!text) return false;
   if (isLikelyNonChatNoise(text)) return false;
-  if (isLikelyInstagramUiChromeText(text)) return false;
+  if (
+    typeof isLikelyInstagramUiChromeText === "function" &&
+    isLikelyInstagramUiChromeText(text)
+  ) {
+    return false;
+  }
 
   const container = instagramMessageContainer(node);
   if (!(container instanceof Element)) return false;
@@ -310,13 +365,54 @@ function isLikelyInstagramThreadListLeaf(node) {
   if (node.closest("a, button, [role='button'], [role='link']")) return true;
   if (node.closest("header")) return true;
   const text = normalizeText(node.innerText || node.textContent);
-  if (isLikelyInstagramUiChromeText(text)) return true;
+  if (
+    typeof isLikelyInstagramUiChromeText === "function" &&
+    isLikelyInstagramUiChromeText(text)
+  ) {
+    return true;
+  }
   if (isLikelyInstagramNameLabel(text)) return true;
   if (isInstagramInboxDesktopLayout()) {
     const rect = node.getBoundingClientRect();
     if (rect.right < window.innerWidth * 0.45) return true;
     if (isLikelyInstagramNameLabel(text) && rect.top < 240) return true;
   }
+  return false;
+}
+
+function isLikelyInstagramUiChromeText(text) {
+  const t = normalizeText(text || "");
+  if (!t) return false;
+  const lowered = t.toLowerCase();
+  if (/instagramhomehomereelsreelsmessagesmessagessearchsearch/i.test(lowered)) {
+    return true;
+  }
+  if (/also from meta|down chevron|new message/i.test(lowered)) {
+    return true;
+  }
+
+  const uiTokens = [
+    "instagram",
+    "home",
+    "reels",
+    "messages",
+    "search",
+    "explore",
+    "notifications",
+    "create",
+    "profile",
+    "settings",
+    "more",
+    "meta",
+    "new message",
+  ];
+
+  let hits = 0;
+  for (const token of uiTokens) {
+    if (lowered.includes(token)) hits += 1;
+  }
+  if (hits >= 5) return true;
+  if (t.length > 90 && hits >= 3) return true;
   return false;
 }
 
@@ -367,6 +463,9 @@ function scoreInstagramConversationRoot(root) {
 }
 
 function findInstagramConversationRoot() {
+  const composerRoot = getInstagramActiveThreadRoot();
+  if (composerRoot) return composerRoot;
+
   const mainRoot = document.querySelector("[role='main']") || document.querySelector("main");
   if (!(mainRoot instanceof Element)) return null;
 
@@ -405,27 +504,47 @@ function findInstagramConversationRoot() {
   return bestRoot;
 }
 
+function isInstagramSidebarItem(item) {
+  if (!(item instanceof Element)) return false;
+  return !!item.querySelector('a[href*="/direct/t/"], a[href*="/t/"]');
+}
+
+function getInstagramMessageTextNode(item) {
+  if (!(item instanceof Element)) return null;
+  const dirAutoNodes = [...item.querySelectorAll('[dir="auto"]')].filter(
+    (node) =>
+      node instanceof Element &&
+      !instagramIsSidebarOrNavNode(node) &&
+      !isLikelyInstagramThreadListLeaf(node),
+  );
+  return dirAutoNodes.length ? dirAutoNodes[dirAutoNodes.length - 1] : null;
+}
+
 function extractInstagramMessages() {
-  const activeConversationRoot = findInstagramConversationRoot();
+  const activeConversationRoot =
+    getInstagramActiveThreadRoot() || findInstagramConversationRoot();
   if (!activeConversationRoot) return [];
 
   const results = [];
-  const leaves = [...activeConversationRoot.querySelectorAll("[dir='auto']")].filter(
-    (node) =>
-      node instanceof Element &&
-      !node.querySelector("[dir='auto']") &&
-      !instagramIsSidebarOrNavNode(node) &&
-      !isLikelyInstagramThreadListLeaf(node) &&
-      isLikelyInstagramMessageLeaf(node) &&
-      !node.closest(HT_UI_SEL),
-  );
+  const items = activeConversationRoot.querySelectorAll("[role='listitem'], li");
 
-  for (const leaf of leaves) {
-    const container = instagramMessageContainer(leaf);
-    if (!container) continue;
-    if (instagramIsSidebarOrNavNode(container)) continue;
+  for (const item of items) {
+    if (!(item instanceof Element)) continue;
+    if (isInstagramSidebarItem(item)) continue;
+
+    const leaf = getInstagramMessageTextNode(item);
+    if (!(leaf instanceof Element)) continue;
+    if (!isLikelyInstagramMessageLeaf(leaf)) continue;
+
     const text = normalizeText(leaf.innerText || leaf.textContent);
-    if (isLikelyInstagramUiChromeText(text)) continue;
+    if (
+      !text ||
+      (typeof isLikelyInstagramUiChromeText === "function" &&
+        isLikelyInstagramUiChromeText(text))
+    ) {
+      continue;
+    }
+
     const aria = instagramMessageAria(leaf);
     if (
       isLikelyInstagramNameLabel(text) &&
@@ -434,9 +553,21 @@ function extractInstagramMessages() {
     ) {
       continue;
     }
-    let speaker = inferSpeaker(leaf);
+
+    let speaker =
+      item.querySelector('[data-testid="outgoing-message"]') ? "sender" : inferSpeaker(leaf);
+    if (speaker === "unknown") {
+      const wrapper = item.firstElementChild;
+      if (wrapper instanceof Element) {
+        const justifyContent = window.getComputedStyle(wrapper).justifyContent;
+        if (justifyContent === "flex-end" || justifyContent === "end") {
+          speaker = "sender";
+        }
+      }
+    }
     if (aria.includes("you sent") || aria.includes("sent by you")) speaker = "sender";
     if (aria.includes("sent by")) speaker = "receiver";
+
     const message = buildMessage(leaf, { speaker, source: "instagram" });
     if (message) results.push(message);
   }
@@ -1019,10 +1150,19 @@ function conversationTextForScanning(messages) {
     .trim();
 }
 
+function scheduleInitialRetry(delayMs = 2200) {
+  if (initialScanRetries >= MAX_INITIAL_SCAN_RETRIES) return;
+  initialScanRetries += 1;
+  window.setTimeout(() => scanPage(true), delayMs);
+}
+
 function scanPage(noSignatureCheck = false) {
   const platform = pagePlatform();
   const messages = extractConversationMessages();
-  if (platform === "instagram" && !messages.length && !noSignatureCheck) return;
+  if (platform === "instagram" && !messages.length && !noSignatureCheck) {
+    scheduleInitialRetry(1800);
+    return;
+  }
 
   const html = currentPageHtml();
   const conversationText = conversationTextForScanning(messages);
@@ -1049,14 +1189,17 @@ function scanPage(noSignatureCheck = false) {
           chrome.runtime.lastError.message,
         );
         clearBannerUi();
+        scheduleInitialRetry(2000);
         return;
       }
       if (!response?.success || response?.skipped) {
         console.warn("[Hacktech Safety] Scan skipped or failed", response);
         clearBannerUi();
+        scheduleInitialRetry(2000);
         return;
       }
       console.log("[kandor] Scan result", response.result);
+      initialScanRetries = 0;
       applyFlaggedTextHighlights(response.result);
       showBanner(response.result, response.settings?.warningThreshold);
     },
@@ -1088,9 +1231,17 @@ console.log("[kandor] Content script loaded on", window.location.href);
 lastObservedHref = normalizedHref();
 if (pagePlatform() === "instagram") {
   primeConversationSignature();
+  window.setTimeout(() => scanPage(true), 1800);
+  window.setTimeout(() => scanPage(true), 4200);
 } else {
   window.setTimeout(scanPage, 1500);
+  window.setTimeout(() => scanPage(true), 4000);
 }
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    window.setTimeout(() => scanPage(true), 500);
+  }
+});
 const observer = new MutationObserver((mutations) => {
   if (suppressMutationScan > 0) return;
 
