@@ -289,7 +289,9 @@ function renderFlaggedMessages(result) {
     `<span style="display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;background:rgba(254,242,242,0.9);color:#b91c1c;border:1px solid rgba(252,165,165,0.5);font-size:11px;font-weight:600;backdrop-filter:blur(8px)">${escapeHtml(label)}</span>`;
 
   const reasonsBlock = (reasons) => {
-    const list = (reasons || []).map((r) => threatLabel(r)).filter(Boolean);
+    const list = [
+      ...new Set((reasons || []).map((r) => threatLabel(r)).filter(Boolean)),
+    ];
     if (!list.length) {
       return `<div style="margin-top:6px;color:#6b6a67;font-size:11px;">No reasons listed.</div>`;
     }
@@ -380,7 +382,7 @@ function threatLabel(threat) {
 
 function renderThreatChips(threats) {
   if (!Array.isArray(threats) || !threats.length) return "None";
-  return threats
+  return [...new Set(threats)]
     .map(
       (threat) =>
         `<span style="display:inline-flex;align-items:center;margin:4px 6px 0 0;padding:5px 9px;border-radius:999px;background:rgba(254,242,242,0.85);color:#b91c1c;border:1px solid rgba(252,165,165,0.45);font-size:11px;font-weight:600;backdrop-filter:blur(6px)">${escapeHtml(threatLabel(threat))}</span>`,
@@ -829,22 +831,13 @@ function scanPage(noSignatureCheck = false) {
         );
         return;
       }
-      if (!response?.success) {
-        console.warn("[kandor] Scan failed", response);
-        return;
-      }
-      if (response?.skipped) {
-        if (response?.reason === "not_social") {
-          console.log("[kandor] Not a supported social page; scan skipped");
-        } else {
-          console.warn("[kandor] Scan skipped", response);
-        }
+      if (!response?.success || response?.skipped) {
+        console.warn("[Hacktech Safety] Scan skipped or failed", response);
         return;
       }
       console.log("[kandor] Scan result", response.result);
       applyFlaggedTextHighlights(response.result);
       showBanner(response.result, response.settings?.warningThreshold);
-      setLastResult(response.result);
     },
   );
 }
