@@ -2,6 +2,8 @@ import logging
 import json
 import os
 import re
+import urllib.error
+import urllib.request
 from typing import Any
 
 import fastapi
@@ -16,6 +18,7 @@ load_dotenv()
 # Initialize FastAPI router
 router = fastapi.APIRouter()
 client = None
+K2_API_URL = "https://api.k2think.ai/v1/chat/completions"
 
 RISK_RULES = [
     {
@@ -164,6 +167,24 @@ def _get_client():
         logging.exception("Failed to initialize Gemini client")
         client = None
     return client
+
+
+def _extract_json_object(text: str) -> dict[str, Any] | None:
+    raw = str(text or "").strip()
+    if not raw:
+        return None
+    raw = re.sub(r"^```(?:json)?\s*", "", raw)
+    raw = re.sub(r"\s*```$", "", raw)
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        if not match:
+            return None
+        try:
+            return json.loads(match.group(0))
+        except json.JSONDecodeError:
+            return None
 
 def _strip_html_tags(html: str) -> str:
     soup = BeautifulSoup(html, "lxml")
@@ -352,6 +373,14 @@ def _fallback_evaluate(text: str, messages: list[dict[str, Any]] | None = None):
     threats, flagged_phrases, score = _run_rules(text)
     flagged_messages = _find_flagged_messages(messages)
 
+    for item in flagged_messages:
+        for reason in item.get("reasons") or []:
+            if reason not in threats:
+                threats.append(reason)
+        for phrase in item.get("phrases") or []:
+            if phrase not in flagged_phrases:
+                flagged_phrases.append(phrase)
+
     if flagged_messages:
         strongest_message_score = max(int(item.get("score") or 0) for item in flagged_messages)
         combined_message_score = min(70, sum(int(item.get("score") or 0) for item in flagged_messages[:3]))
@@ -465,17 +494,117 @@ def _merge_with_fallback(primary: dict[str, Any], fallback: dict[str, Any]) -> d
         merged["recommended_action"] = fallback.get("recommended_action")
     return merged
 
+
+def _k2_prompt(analysis_text: str, messages: list[dict[str, Any]], platform: str) -> str:
+    return (
+        "You are a fast child-safety classifier for browser chat scans.\n"
+        "Return only JSON with this schema:\n"
+        "{"
+        '"danger_rating": 0, '
+        '"confidence": 0, '
+        '"threats_detected": [], '
+        '"flagged_phrases": [], '
+        '"flagged_messages": [{"speaker":"sender","text":"...", "reasons":[], "phrases":[], "score":0}], '
+        '"evaluation": "...", '
+        '"recommended_action": "none", '
+        '"highest_risk_message": "", '
+        f'"platform": "{platform}"'
+        "}\n"
+        "Allowed recommended_action values: none, monitor, warn_user, block_and_alert_guardian.\n"
+        "Threat labels must come only from: GROOMING, SEXUAL_CONTENT, PII_SOLICITATION, PLATFORM_MIGRATION, "
+        "THREATS_COERCION, SELF_HARM_CONTENT, HATE_HARASSMENT, FINANCIAL_SCAM, OBFUSCATION.\n"
+        "Treat secrecy, moving to another app, requests for address/location/school, predatory age interest, hate slurs, "
+        "and coercive pressure as strong risk signals.\n"
+        "Favor concise evidence and keep evaluation to 1-2 sentences.\n\n"
+        "Transcript:\n"
+        f"{_format_messages(messages)}\n\n"
+        "Page text:\n"
+        f"{analysis_text}"
+    )
+
+
+def _call_k2_classifier(analysis_text: str, messages: list[dict[str, Any]], platform: str) -> dict[str, Any] | None:
+    api_key = os.environ.get("K2_API_KEY") or os.environ.get("IFM_API_KEY")
+    if not api_key:
+        return None
+
+    payload = {
+        "model": "MBZUAI-IFM/K2-Think-v2",
+        "stream": False,
+        "messages": [
+            {
+                "role": "system",
+                "content": "Return strict JSON only. No markdown fences. No extra text.",
+            },
+            {
+                "role": "user",
+                "content": _k2_prompt(analysis_text, messages, platform),
+            },
+        ],
+        "temperature": 0.1,
+    }
+
+    request = urllib.request.Request(
+        K2_API_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "accept": "application/json",
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=6) as response:
+            raw = response.read().decode("utf-8")
+    except urllib.error.HTTPError:
+        logging.exception("K2 HTTP request failed")
+        return None
+    except Exception:
+        logging.exception("K2 request failed")
+        return None
+
+    payload = _extract_json_object(raw)
+    if not payload:
+        payload = _extract_json_object(
+            (
+                json.loads(raw)
+                .get("choices", [{}])[0]
+                .get("message", {})
+                .get("content", "")
+            )
+            if raw.strip().startswith("{")
+            else raw
+        )
+    if not payload and raw.strip().startswith("{"):
+        try:
+            parsed_raw = json.loads(raw)
+            content = parsed_raw.get("choices", [{}])[0].get("message", {}).get("content", "")
+            payload = _extract_json_object(content)
+        except Exception:
+            payload = None
+
+    if not payload:
+        return None
+
+    normalized = _normalize_result(payload)
+    normalized["platform"] = platform or normalized.get("platform") or "generic"
+    return normalized
+
 @router.post("/evaluate")
 async def evaluate(request: fastapi.Request):
     html = ""
     page_text = ""
     messages: list[dict[str, Any]] = []
+    platform = "generic"
 
     content_type = request.headers.get("content-type", "").lower()
     if "application/json" in content_type:
         body = await request.json()
         html = str(body.get("html") or "")
         page_text = str(body.get("pageText") or "")
+        platform = str(body.get("platform") or "generic").strip() or "generic"
         raw_messages = body.get("messages") or []
         if isinstance(raw_messages, list):
             messages = [item for item in raw_messages if isinstance(item, dict)]
@@ -484,6 +613,16 @@ async def evaluate(request: fastapi.Request):
 
     stripped_html = _strip_html_tags(html) if html else ""
     analysis_text = page_text.strip() or _format_messages(messages) or stripped_html
+    fallback = _fallback_evaluate(analysis_text, messages)
+    fallback["platform"] = platform
+
+    k2_result = _call_k2_classifier(analysis_text, messages, platform)
+    if k2_result:
+        k2_result = _merge_with_fallback(k2_result, fallback)
+        confidence = int(k2_result.get("confidence_score") or 0)
+        danger = int(k2_result.get("danger_rating") or 0)
+        if (danger <= 20 and confidence >= 60) or (danger >= 70 and confidence >= 70):
+            return k2_result
 
     prompt = """You are a child safety classifier evaluating direct messages for signs of harm to minors. Assume the recipient is a child (under 13) unless explicitly stated otherwise.
 
@@ -537,7 +676,7 @@ async def evaluate(request: fastapi.Request):
     Here is the extracted conversation transcript if available:\n\n""" + _format_messages(messages) + "\n\nHere is the page text to evaluate:\n\n" + analysis_text
     gemini_client = _get_client()
     if gemini_client is None:
-        return _fallback_evaluate(analysis_text, messages)
+        return k2_result or fallback
 
     try:
         response = gemini_client.models.generate_content(
@@ -611,11 +750,17 @@ async def evaluate(request: fastapi.Request):
     try:
         parsed = json.loads(response.text)
         normalized = _normalize_result(parsed)
-        fallback = _fallback_evaluate(analysis_text, messages)
-        normalized["platform"] = str(body.get("platform") or "generic") if "application/json" in content_type else "generic"
-        fallback["platform"] = normalized["platform"]
-        return _merge_with_fallback(normalized, fallback)
+        normalized["platform"] = platform
+        merged = _merge_with_fallback(normalized, fallback)
+        if k2_result:
+            merged["confidence_score"] = max(
+                int(merged.get("confidence_score") or 0),
+                min(100, int(k2_result.get("confidence_score") or 0)),
+            )
+            if not merged.get("flagged_messages"):
+                merged["flagged_messages"] = k2_result.get("flagged_messages", [])
+            if not merged.get("flagged_phrases"):
+                merged["flagged_phrases"] = k2_result.get("flagged_phrases", [])
+        return merged
     except json.JSONDecodeError:
-        fallback = _fallback_evaluate(analysis_text, messages)
-        fallback["platform"] = str(body.get("platform") or "generic") if "application/json" in content_type else "generic"
-        return fallback
+        return k2_result or fallback

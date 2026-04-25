@@ -1,11 +1,15 @@
 let lastHtmlSignature = "";
 let lastBannerAt = 0;
 let lastBannerSignature = "";
+let bannerRotationTimer = null;
 const MAX_MESSAGES = 24;
 const OPEN_SANS_CSS_URL = "https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&display=swap";
 
 function currentPageHtml() {
-  return document.documentElement?.outerHTML || "";
+  const clone = document.documentElement?.cloneNode(true);
+  clone?.querySelector("#hacktech-safety-banner")?.remove();
+  clone?.querySelector("#hacktech-open-sans")?.remove();
+  return clone?.outerHTML || "";
 }
 
 function normalizeText(value) {
@@ -196,6 +200,25 @@ function renderThreatChips(threats) {
     .join("");
 }
 
+function rotatingDangerMessages(result) {
+  const seen = new Set();
+  const items = [];
+
+  const push = (text) => {
+    const normalized = normalizeText(text);
+    if (!normalized || seen.has(normalized)) return;
+    seen.add(normalized);
+    items.push(normalized);
+  };
+
+  push(result?.highest_risk_message);
+  for (const item of result?.flagged_messages || []) {
+    push(item?.text);
+  }
+
+  return items.slice(0, 5);
+}
+
 function ensureOpenSans() {
   if (document.getElementById("hacktech-open-sans")) return;
   const link = document.createElement("link");
@@ -223,6 +246,10 @@ function showBanner(result, threshold) {
 
   const existing = document.getElementById("hacktech-safety-banner");
   if (existing) existing.remove();
+  if (bannerRotationTimer) {
+    window.clearInterval(bannerRotationTimer);
+    bannerRotationTimer = null;
+  }
 
   const banner = document.createElement("div");
   banner.id = "hacktech-safety-banner";
@@ -240,6 +267,7 @@ function showBanner(result, threshold) {
   banner.style.fontFamily = "'Open Sans', ui-sans-serif, sans-serif";
   banner.style.boxShadow = "0 18px 45px rgba(15,23,42,0.16)";
   banner.style.backdropFilter = "blur(10px)";
+  const dangerMessages = rotatingDangerMessages(result);
   banner.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;">
       <div style="font-weight:700;font-size:15px;">Hacktech Safety Alert</div>
@@ -255,9 +283,9 @@ function showBanner(result, threshold) {
       }
     </div>
     ${
-      result.highest_risk_message
+      dangerMessages.length
         ? `<div style="margin-top:10px;font-size:12px;line-height:1.5;background:#f7f6f3;border-radius:12px;padding:10px;border:1px solid rgba(55,53,47,0.1);">
-            <b>Highest-risk message:</b><br/>${result.highest_risk_message}
+            <b>Danger message</b><br/><span id="hacktech-rotating-message">${dangerMessages[0]}</span>
           </div>`
         : ""
     }
@@ -265,12 +293,37 @@ function showBanner(result, threshold) {
   `;
 
   document.body.appendChild(banner);
-  banner.querySelector("#hacktech-safety-close")?.addEventListener("click", () => banner.remove());
+  const rotatingMessage = banner.querySelector("#hacktech-rotating-message");
+  if (rotatingMessage && dangerMessages.length > 1) {
+    let index = 0;
+    bannerRotationTimer = window.setInterval(() => {
+      if (!document.body.contains(banner)) {
+        window.clearInterval(bannerRotationTimer);
+        bannerRotationTimer = null;
+        return;
+      }
+      index = (index + 1) % dangerMessages.length;
+      rotatingMessage.textContent = dangerMessages[index];
+    }, 3000);
+  }
+  banner.querySelector("#hacktech-safety-close")?.addEventListener("click", () => {
+    if (bannerRotationTimer) {
+      window.clearInterval(bannerRotationTimer);
+      bannerRotationTimer = null;
+    }
+    banner.remove();
+  });
+}
+
+function pageTextForScanning() {
+  const clone = document.body?.cloneNode(true);
+  clone?.querySelector("#hacktech-safety-banner")?.remove();
+  return normalizeText(clone?.innerText || clone?.textContent || "");
 }
 
 function scanPage() {
   const html = currentPageHtml();
-  const pageText = normalizeText(document.body?.innerText || "");
+  const pageText = pageTextForScanning();
   const messages = extractConversationMessages();
   const signature = `${htmlSignature(html)}:${JSON.stringify(messages.slice(-6))}`;
   if (signature === lastHtmlSignature) return;
@@ -310,7 +363,12 @@ chrome.runtime.onMessage.addListener((message) => {
 
 console.log("[Hacktech Safety] Content script loaded on", window.location.href);
 window.setTimeout(scanPage, 1500);
-const observer = new MutationObserver(() => {
+const observer = new MutationObserver((mutations) => {
+  const onlyExtensionUiChanges = mutations.every((mutation) => {
+    const target = mutation.target instanceof Element ? mutation.target : mutation.target?.parentElement;
+    return target?.closest?.("#hacktech-safety-banner") || target?.id === "hacktech-open-sans";
+  });
+  if (onlyExtensionUiChanges) return;
   window.setTimeout(scanPage, 1200);
 });
 observer.observe(document.documentElement, { subtree: true, childList: true, characterData: true });
