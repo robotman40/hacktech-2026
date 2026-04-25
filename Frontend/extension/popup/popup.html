@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>SafeChat Guardian</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+
+  <div class="header">
+    <span class="logo">🛡️</span>
+    <div>
+      <h1>SafeChat Guardian</h1>
+      <div class="subtitle" id="site-label">Loading…</div>
+    </div>
+  </div>
+
+  <!-- Per-site enable toggle -->
+  <div class="toggle-row">
+    <div>
+      <div class="toggle-label">Protection enabled</div>
+      <div class="site-label" id="profile-scope">global</div>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="toggle-enabled" />
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <!-- Stats for current site -->
+  <div class="stats">
+    <div class="stats-title">Reports — this site</div>
+    <div class="stat-row"><span>Total reports</span><span id="stat-total">—</span></div>
+    <div class="stat-row"><span>High danger (7+)</span><span id="stat-high">—</span></div>
+    <div class="stat-row"><span>Medium (4–6)</span><span id="stat-medium">—</span></div>
+  </div>
+
+  <!-- Recent reports list -->
+  <div class="reports" id="reports-list">
+    <div class="empty-state">No reports yet</div>
+  </div>
+
+  <!-- Action buttons -->
+  <div class="actions">
+    <button class="btn-primary"   id="btn-options">⚙ Settings</button>
+    <button class="btn-secondary" id="btn-refresh">↻ Refresh</button>
+    <button class="btn-danger"    id="btn-clear">Clear</button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

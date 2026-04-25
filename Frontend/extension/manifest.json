@@ -1,0 +1,70 @@
+{
+  "manifest_version": 3,
+  "name": "SafeChat Guardian",
+  "version": "1.0.0",
+  "description": "Detects harmful chat behavior (manipulation, threats, scams, gaslighting) across social platforms.",
+  "permissions": ["storage", "alarms", "notifications", "tabs"],
+  "host_permissions": [
+    "https://*.instagram.com/*",
+    "https://*.facebook.com/*",
+    "https://*.messenger.com/*",
+    "https://web.whatsapp.com/*",
+    "https://*.tinder.com/*",
+    "https://*.linkedin.com/*",
+    "https://*.twitter.com/*",
+    "https://x.com/*",
+    "https://*.discord.com/*",
+    "https://*.snapchat.com/*"
+  ],
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.instagram.com/*",
+        "https://*.facebook.com/*",
+        "https://*.messenger.com/*",
+        "https://web.whatsapp.com/*",
+        "https://*.tinder.com/*",
+        "https://*.linkedin.com/*",
+        "https://*.twitter.com/*",
+        "https://x.com/*",
+        "https://*.discord.com/*",
+        "https://*.snapchat.com/*"
+      ],
+      "js": [
+        "utils/storage.js",
+        "utils/messaging.js",
+        "adapters/base.js",
+        "adapters/instagram.js",
+        "adapters/facebook.js",
+        "adapters/whatsapp.js",
+        "adapters/tinder.js",
+        "adapters/linkedin.js",
+        "adapters/twitter.js",
+        "adapters/discord.js",
+        "adapters/registry.js",
+        "content/extractor.js",
+        "content/observer.js",
+        "content/index.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "SafeChat Guardian",
+    "default_icon": {
+      "16":  "icons/icon16.png",
+      "48":  "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "options_page": "options/options.html",
+  "icons": {
+    "16":  "icons/icon16.png",
+    "48":  "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

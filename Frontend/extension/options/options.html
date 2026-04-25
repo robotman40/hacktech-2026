@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>SafeChat Guardian — Settings</title>
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+<div class="page">
+
+  <h1>🛡️ SafeChat Guardian</h1>
+  <p class="subtitle">Configure detection profiles per platform, API endpoint, and sensitivity.</p>
+
+  <!-- Tab bar -->
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="global">Global</button>
+    <button class="tab-btn"        data-tab="sites">Per-Site Profiles</button>
+    <button class="tab-btn"        data-tab="reports">Reports</button>
+  </div>
+
+  <!-- ── GLOBAL TAB ──────────────────────────────────────────────────────── -->
+  <div class="tab-panel active" id="tab-global">
+
+    <div class="card">
+      <h2>API Connection</h2>
+      <div class="field">
+        <label for="g-endpoint">Evaluation endpoint</label>
+        <input type="url" id="g-endpoint" placeholder="http://localhost:8000/v1/evaluate" />
+        <small>POST receives <code>{ messages, meta }</code>; responds with <code>{ danger_rating, confidence_score, evaluation }</code>.</small>
+      </div>
+      <div class="field">
+        <label for="g-apikey">API key (optional)</label>
+        <input type="password" id="g-apikey" placeholder="Bearer token sent in Authorization header" />
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Default Behaviour</h2>
+
+      <div class="checkbox-row">
+        <label class="switch">
+          <input type="checkbox" id="g-enabled" />
+          <span class="slider"></span>
+        </label>
+        <label for="g-enabled">Enable protection globally</label>
+      </div>
+
+      <div class="field">
+        <label for="g-interval">Poll interval (seconds)</label>
+        <input type="number" id="g-interval" min="10" max="3600" step="5" />
+        <small>How often the content script re-reads the chat thread (minimum 10s).</small>
+      </div>
+
+      <div class="field">
+        <label for="g-sensitivity">Sensitivity</label>
+        <select id="g-sensitivity">
+          <option value="low">Low — only obvious multi-signal threats</option>
+          <option value="medium">Medium — any single pattern match (default)</option>
+          <option value="high">High — pre-filter off, always call API</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="g-minrating">Minimum danger rating to alert (1–10)</label>
+        <input type="number" id="g-minrating" min="1" max="10" step="1" />
+        <small>Reports are always saved; this threshold controls banners &amp; notifications.</small>
+      </div>
+
+      <div class="checkbox-row">
+        <input type="checkbox" id="g-notify" />
+        <label for="g-notify">Show system notifications for dangerous conversations</label>
+      </div>
+
+      <div class="checkbox-row">
+        <input type="checkbox" id="g-banner" />
+        <label for="g-banner">Show in-page warning banner</label>
+      </div>
+
+      <div class="checkbox-row">
+        <input type="checkbox" id="g-prefilter" />
+        <label for="g-prefilter">Use local pre-filter before calling API (recommended)</label>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="primary" id="save-global">Save global settings</button>
+    </div>
+  </div>
+
+  <!-- ── PER-SITE TAB ───────────────────────────────────────────────────── -->
+  <div class="tab-panel" id="tab-sites">
+
+    <div class="card">
+      <h2>Platform profiles</h2>
+      <p style="color:#666;font-size:13px;margin-bottom:14px;">
+        Each profile overrides the global defaults only for that site.
+        Leave fields blank to inherit the global value.
+      </p>
+      <div class="site-list" id="site-list"><!-- populated by JS --></div>
+    </div>
+
+    <!-- Per-site editor (shown when "Configure" is clicked) -->
+    <div class="card" id="site-editor" style="display:none;">
+      <h2 id="site-editor-title">Configure: —</h2>
+
+      <div class="checkbox-row">
+        <label class="switch">
+          <input type="checkbox" id="s-enabled" />
+          <span class="slider"></span>
+        </label>
+        <label for="s-enabled">Enable on this site</label>
+      </div>
+
+      <div class="field">
+        <label for="s-endpoint">API endpoint override</label>
+        <input type="url" id="s-endpoint" placeholder="Leave blank to use global" />
+      </div>
+
+      <div class="field">
+        <label for="s-interval">Poll interval (seconds)</label>
+        <input type="number" id="s-interval" min="10" max="3600" step="5" placeholder="Inherit global" />
+      </div>
+
+      <div class="field">
+        <label for="s-sensitivity">Sensitivity</label>
+        <select id="s-sensitivity">
+          <option value="">Inherit global</option>
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="s-minrating">Min danger rating to alert</label>
+        <input type="number" id="s-minrating" min="1" max="10" step="1" placeholder="Inherit global" />
+      </div>
+
+      <div class="btn-row">
+        <button class="primary"   id="save-site">Save site profile</button>
+        <button class="secondary" id="cancel-site">Cancel</button>
+        <button class="danger"    id="delete-site">Delete profile</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── REPORTS TAB ────────────────────────────────────────────────────── -->
+  <div class="tab-panel" id="tab-reports">
+
+    <div class="card">
+      <h2>Saved reports</h2>
+
+      <div style="display:flex;gap:10px;margin-bottom:14px;align-items:center;">
+        <select id="filter-site" style="max-width:220px;">
+          <option value="">All sites</option>
+        </select>
+        <button class="danger" id="clear-reports" style="margin-left:auto;">Clear filtered</button>
+      </div>
+
+      <div id="reports-wrap">
+        <table class="reports-table">
+          <thead>
+            <tr>
+              <th>Site</th>
+              <th>Rating</th>
+              <th>Confidence</th>
+              <th>Evaluation</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody id="reports-tbody">
+            <tr><td colspan="5" style="text-align:center;color:#aaa;padding:20px;">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div id="save-toast">✓ Saved</div>
+<script src="options.js"></script>
+</body>
+</html>
