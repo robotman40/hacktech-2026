@@ -3,198 +3,210 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-    <title>Hacktech Safety Alert</title>
+    <title>kandor alert</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"
+      rel="stylesheet"
+    />
     <style>
       :root {
-        --paper: #fbfbfa;
-        --paper-strong: #ffffff;
-        --ink: #37352f;
-        --muted: #6b6a67;
-        --line: rgba(55, 53, 47, 0.12);
-        --line-strong: rgba(55, 53, 47, 0.18);
-        --surface: rgba(255, 255, 255, 0.78);
-        --surface-hover: rgba(255, 255, 255, 0.94);
-        --danger-soft: #fff1ef;
-        --danger-ink: #c4554d;
-        --success-soft: #eef8f1;
-        --success-ink: #2f7d4f;
-        --accent-soft: #f2f1ee;
-        --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+        --ink: #111827;
+        --muted: #4b5563;
+        --line-glass: rgba(255, 255, 255, 0.55);
+        --shadow-elev: 0 20px 50px -12px rgba(99, 102, 241, 0.18), 0 8px 24px rgba(15, 23, 42, 0.08);
+        --inset: inset 0 1px 0 0 rgba(255, 255, 255, 0.45);
+        /* Same stack as Landing @theme --font-serif (constants: KANDOR_DISPLAY_SERIF) */
+        --serif: "Fraunces", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+        --sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+        --grad-text: linear-gradient(135deg, #111827 0%, #4b5563 100%);
+        --grad-btn: linear-gradient(90deg, #2563eb, #4f46e5);
+        --grad-page: linear-gradient(135deg, #eff6ff 0%, #eef2ff 45%, #faf5ff 100%);
+      }
+      * {
+        box-sizing: border-box;
       }
       body {
         margin: 0;
         width: 380px;
         min-height: 560px;
-        padding: 18px;
-        box-sizing: border-box;
-        background:
-          radial-gradient(circle at top left, rgba(255, 255, 255, 0.9), transparent 36%),
-          linear-gradient(180deg, #f7f6f3 0%, #f3f2ef 100%);
+        padding: 16px;
+        background: var(--grad-page);
         color: var(--ink);
-        font-family: "Open Sans", ui-sans-serif, sans-serif;
+        font-family: var(--sans);
+        -webkit-font-smoothing: antialiased;
       }
       .shell {
         display: flex;
         flex-direction: column;
         gap: 12px;
       }
+      .glass {
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.35));
+        border: 1px solid var(--line-glass);
+        box-shadow: var(--shadow-elev), var(--inset);
+        backdrop-filter: blur(20px) saturate(180%);
+        -webkit-backdrop-filter: blur(20px) saturate(180%);
+        border-radius: 20px;
+      }
       .hero {
-        padding: 16px 16px 14px;
-        border-radius: 18px;
-        background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.8));
-        border: 1px solid var(--line);
-        box-shadow: var(--shadow);
+        padding: 18px 18px 16px;
       }
       .eyebrow {
         display: inline-flex;
         align-items: center;
-        gap: 6px;
-        padding: 4px 9px;
+        padding: 5px 10px;
         border-radius: 999px;
-        background: var(--accent-soft);
+        background: rgba(255, 255, 255, 0.45);
         color: var(--muted);
-        font-size: 11px;
+        font-size: 10px;
         font-weight: 600;
-        letter-spacing: 0.04em;
+        letter-spacing: 0.12em;
         text-transform: uppercase;
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        font-family: var(--sans);
       }
       h1 {
-        margin: 12px 0 6px;
-        font-size: 24px;
-        line-height: 1.1;
-        font-weight: 700;
-        letter-spacing: -0.03em;
+        margin: 12px 0 8px;
+        font-size: 26px;
+        line-height: 1.15;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        font-family: var(--serif);
+        background: var(--grad-text);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
       }
       .hero p {
         margin: 0;
         color: var(--muted);
         font-size: 13px;
-        line-height: 1.5;
+        line-height: 1.55;
+        font-family: var(--sans);
       }
       .section {
-        padding: 14px;
-        border-radius: 16px;
-        border: 1px solid var(--line);
-        background: var(--surface);
-        backdrop-filter: blur(10px);
+        padding: 16px 16px 14px;
+        border-radius: 18px;
       }
       .sectionTitle {
-        margin: 0 0 10px;
+        margin: 0 0 12px;
         font-size: 12px;
-        font-weight: 700;
-        letter-spacing: 0.03em;
+        font-weight: 600;
+        letter-spacing: 0.04em;
         text-transform: uppercase;
         color: var(--muted);
+        font-family: var(--sans);
       }
       .row {
         margin-bottom: 10px;
       }
-      label {
+      label[for] {
         display: block;
         margin-bottom: 5px;
         font-size: 12px;
-        font-weight: 600;
+        font-weight: 500;
         color: var(--muted);
+        font-family: var(--sans);
       }
       input[type="text"],
       input[type="number"] {
         width: 100%;
-        box-sizing: border-box;
         padding: 10px 12px;
         border-radius: 12px;
-        border: 1px solid var(--line);
-        background: rgba(255, 255, 255, 0.96);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        background: rgba(255, 255, 255, 0.55);
         color: var(--ink);
         font-size: 13px;
+        font-family: var(--sans);
         outline: none;
-        transition: border-color 120ms ease, box-shadow 120ms ease, background 120ms ease;
+        transition: box-shadow 150ms ease, border-color 150ms ease;
+        backdrop-filter: blur(8px);
       }
       input[type="text"]:focus,
       input[type="number"]:focus {
-        border-color: rgba(35, 131, 226, 0.45);
-        box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.12);
-        background: #fff;
+        border-color: rgba(99, 102, 241, 0.45);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+        background: rgba(255, 255, 255, 0.78);
       }
       .toggle {
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 12px;
-        padding: 12px;
+        padding: 12px 14px;
         border-radius: 14px;
-        background: rgba(255, 255, 255, 0.92);
-        border: 1px solid var(--line);
-      }
-      .toggleText {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
+        background: rgba(255, 255, 255, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        backdrop-filter: blur(8px);
       }
       .toggleText strong {
         font-size: 13px;
+        color: var(--ink);
+        font-weight: 600;
+        font-family: var(--sans);
       }
       .toggleText span {
         font-size: 12px;
         color: var(--muted);
+        font-family: var(--sans);
       }
       input[type="checkbox"] {
         width: 18px;
         height: 18px;
-        accent-color: #2f7d4f;
+        accent-color: #4f46e5;
       }
       .actions {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 8px;
+        margin-top: 4px;
       }
       button {
         width: 100%;
         padding: 10px 12px;
         border-radius: 12px;
-        border: 1px solid var(--line);
-        background: var(--paper-strong);
-        color: var(--ink);
         font-size: 13px;
         font-weight: 600;
         cursor: pointer;
-        transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+        font-family: var(--sans);
+        transition: transform 100ms ease, box-shadow 150ms ease, filter 150ms ease;
+        border: 1px solid transparent;
       }
       button:hover {
-        background: var(--surface-hover);
-        border-color: var(--line-strong);
+        filter: brightness(1.03);
       }
       button:active {
         transform: translateY(1px);
       }
       .primary {
-        background: #2f7d4f;
-        border-color: #2f7d4f;
+        background: var(--grad-btn);
         color: #fff;
+        box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
+        border: none;
       }
       .primary:hover {
-        background: #276843;
-        border-color: #276843;
+        filter: brightness(1.05);
       }
       .secondary {
-        background: #fff;
+        background: rgba(255, 255, 255, 0.65);
+        color: var(--ink);
+        border: 1px solid rgba(255, 255, 255, 0.6);
+        backdrop-filter: blur(8px);
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
       }
       .tertiary {
         grid-column: 1 / -1;
-        background: #f4f3f1;
+        background: rgba(255, 255, 255, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        color: var(--muted);
+        backdrop-filter: blur(6px);
       }
       .card {
-        padding: 12px;
-        border-radius: 14px;
-        border: 1px solid var(--line);
-        background: rgba(255, 255, 255, 0.84);
+        padding: 14px 16px;
         font-size: 12px;
         line-height: 1.5;
-      }
-      .statusCard {
-        background: linear-gradient(180deg, #ffffff, #faf9f7);
       }
       .statusHeader {
         display: flex;
@@ -204,23 +216,30 @@
         margin-bottom: 8px;
       }
       .statusHeader b {
-        font-size: 13px;
+        font-size: 14px;
+        font-weight: 600;
+        font-family: var(--sans);
+        color: var(--ink);
       }
       .pill {
         display: inline-flex;
         align-items: center;
         border-radius: 999px;
-        padding: 4px 8px;
+        padding: 5px 10px;
         font-size: 11px;
-        font-weight: 700;
+        font-weight: 600;
+        font-family: var(--sans);
+        backdrop-filter: blur(6px);
       }
       .pillSafe {
-        background: var(--success-soft);
-        color: var(--success-ink);
+        background: rgba(220, 252, 231, 0.85);
+        color: #15803d;
+        border: 1px solid rgba(134, 239, 172, 0.5);
       }
       .pillWarn {
-        background: var(--danger-soft);
-        color: var(--danger-ink);
+        background: rgba(254, 242, 242, 0.9);
+        color: #b91c1c;
+        border: 1px solid rgba(252, 165, 165, 0.45);
       }
       .resultContent {
         display: flex;
@@ -230,15 +249,18 @@
       .mutedLine,
       .muted {
         color: var(--muted);
+        font-family: var(--sans);
       }
       .note {
-        padding: 12px;
+        padding: 12px 14px;
         border-radius: 14px;
-        border: 1px dashed var(--line-strong);
-        background: rgba(255, 255, 255, 0.55);
+        border: 1px dashed rgba(99, 102, 241, 0.25);
+        background: rgba(255, 255, 255, 0.35);
         color: var(--muted);
         font-size: 12px;
         line-height: 1.5;
+        font-family: var(--sans);
+        backdrop-filter: blur(8px);
       }
       .listBlock {
         display: flex;
@@ -248,8 +270,9 @@
       .listItem {
         padding: 10px 12px;
         border-radius: 12px;
-        background: rgba(255, 255, 255, 0.82);
-        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.45);
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        backdrop-filter: blur(6px);
       }
       .mono {
         font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -260,13 +283,13 @@
   </head>
   <body>
     <div class="shell">
-      <section class="hero">
+      <section class="hero glass">
         <div class="eyebrow">Safety workspace</div>
-        <h1 id="appBrandTitle">Hacktech Safety Alert</h1>
+        <h1 id="appBrandTitle">kandor alert</h1>
         <p>Notion-inspired review space for live conversation scans, extracted transcripts, and evidence-rich alerts.</p>
       </section>
 
-      <section class="section">
+      <section class="section glass">
         <div class="sectionTitle">Controls</div>
 
         <div class="row">
@@ -289,7 +312,7 @@
           <input id="scanIntervalMinutes" type="number" min="1" value="1" />
         </div>
 
-        <div class="row" style="margin-bottom: 14px;">
+        <div class="row" style="margin-bottom: 14px">
           <label for="warningThreshold">Warning threshold</label>
           <input id="warningThreshold" type="number" min="0" max="100" value="40" />
         </div>
@@ -301,7 +324,7 @@
         </div>
       </section>
 
-      <section class="card statusCard">
+      <section class="card glass">
         <div class="statusHeader">
           <b>Last result</b>
           <span id="resultPill" class="pill pillSafe">Idle</span>

@@ -51,14 +51,14 @@ async function checkIsSocialPage(pageUrl, backendBaseUrl) {
       body: JSON.stringify({ url: String(pageUrl) })
     });
     if (!response.ok) {
-      console.warn("[Hacktech Safety] is-social check HTTP", response.status);
+      console.warn("[kandor] is-social check HTTP", response.status);
       return { ok: false, isSocial: null };
     }
     const data = await response.json();
     const isSocial = data?.is_social === true;
     return { ok: true, isSocial };
   } catch (error) {
-    console.warn("[Hacktech Safety] is-social check failed", error);
+    console.warn("[kandor] is-social check failed", error);
     return { ok: false, isSocial: null };
   }
 }
@@ -72,7 +72,7 @@ async function postHtmlToBackend(html, pageUrl) {
   let lastError = null;
   for (const endpoint of ENDPOINT_CANDIDATES) {
     try {
-      console.log("[Hacktech Safety] Posting HTML to", `${settings.backendBaseUrl}${endpoint}`);
+      console.log("[kandor] Posting HTML to", `${settings.backendBaseUrl}${endpoint}`);
       const response = await fetch(`${settings.backendBaseUrl}${endpoint}`, {
         method: "POST",
         headers,
@@ -126,11 +126,11 @@ async function postHtmlToBackend(html, pageUrl) {
             }))
           : []
       };
-      console.log("[Hacktech Safety] Received result", result);
+      console.log("[kandor] Received result", result);
       await setLastResult(result);
       return result;
     } catch (error) {
-      console.warn("[Hacktech Safety] Backend request failed", endpoint, error);
+      console.warn("[kandor] Backend request failed", endpoint, error);
       lastError = error;
     }
   }
@@ -194,7 +194,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type !== "SCAN_PAGE_HTML") return;
 
   (async () => {
-    console.log("[Hacktech Safety] SCAN_PAGE_HTML received", message?.pageUrl);
+    console.log("[kandor] SCAN_PAGE_HTML received", message?.pageUrl);
     const settings = await getSettings();
     if (!settings.enabled) {
       sendResponse({ success: true, skipped: true, reason: "disabled" });

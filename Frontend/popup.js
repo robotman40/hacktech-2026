@@ -8,9 +8,9 @@ function escapeHtml(value) {
 }
 
 const APP_ALERT_TITLE =
-  typeof HACKTECH_APP_ALERT_TITLE !== "undefined" && HACKTECH_APP_ALERT_TITLE
-    ? HACKTECH_APP_ALERT_TITLE
-    : "Hacktech Safety Alert";
+  typeof KANDOR_APP_ALERT_TITLE !== "undefined" && KANDOR_APP_ALERT_TITLE
+    ? KANDOR_APP_ALERT_TITLE
+    : "kandor alert";
 {
   const el = document.getElementById("appBrandTitle");
   if (el) el.textContent = APP_ALERT_TITLE;

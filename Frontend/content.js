@@ -5,20 +5,25 @@ let flagHoverPopover = null;
 let flagHoverHideTimer = null;
 let suppressMutationScan = 0;
 const MAX_MESSAGES = 24;
-const OPEN_SANS_CSS_URL = "https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&display=swap";
+const KANDOR_FONTS_CSS_URL =
+  "https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap";
+
+const KANDOR_FONT_SERIF =
+  "'Fraunces', ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif";
+const KANDOR_FONT_SANS = "'Inter', ui-sans-serif, system-ui, sans-serif";
 
 const HT_FLAG = "hacktech-flag-highlight";
 const HT_UI_SEL = [
   "#hacktech-safety-banner",
   "#hacktech-flag-hover-popover",
   "#hacktech-open-sans",
-  ".hacktech-flag-highlight"
+  ".hacktech-flag-highlight",
 ].join(", ");
 
 const APP_ALERT_TITLE =
-  typeof HACKTECH_APP_ALERT_TITLE !== "undefined" && HACKTECH_APP_ALERT_TITLE
-    ? HACKTECH_APP_ALERT_TITLE
-    : "Hacktech Safety Alert";
+  typeof KANDOR_APP_ALERT_TITLE !== "undefined" && KANDOR_APP_ALERT_TITLE
+    ? KANDOR_APP_ALERT_TITLE
+    : "kandor alert";
 
 function currentPageHtml() {
   const clone = document.documentElement?.cloneNode(true);
@@ -33,7 +38,9 @@ function currentPageHtml() {
 }
 
 function normalizeText(value) {
-  return String(value || "").replace(/\s+/g, " ").trim();
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /**
@@ -44,7 +51,11 @@ function isLikelyNonChatNoise(text) {
   const t = String(text || "").trim();
   if (t.length < 2) return true;
   if (/\{"require"\s*:\s*\[\[/.test(t)) return true;
-  if (/\bHasteSupportData\b|qplTimingsServerJS|ScheduledServerJS|__bbox\b|clpData/i.test(t)) {
+  if (
+    /\bHasteSupportData\b|qplTimingsServerJS|ScheduledServerJS|__bbox\b|clpData/i.test(
+      t,
+    )
+  ) {
     return true;
   }
   if (t.length > 60) {
@@ -134,8 +145,8 @@ function conversationSignature(messages) {
     href: String(window.location.href || "").split("#")[0] || "",
     messages: list.map((m) => ({
       speaker: String(m.speaker || "unknown"),
-      text: normalizeText(m.text || "")
-    }))
+      text: normalizeText(m.text || ""),
+    })),
   });
 }
 
@@ -148,12 +159,14 @@ function pagePlatform() {
   if (host.includes("instagram.com")) return "instagram";
   if (host.includes("discord.com")) return "discord";
   if (host.includes("web.whatsapp.com")) return "whatsapp";
-  if (host.includes("messenger.com") || host.includes("facebook.com")) return "messenger";
+  if (host.includes("messenger.com") || host.includes("facebook.com"))
+    return "messenger";
   return "generic";
 }
 
 function inferSpeaker(element) {
-  const classText = `${element.className || ""} ${element.parentElement?.className || ""}`.toLowerCase();
+  const classText =
+    `${element.className || ""} ${element.parentElement?.className || ""}`.toLowerCase();
   if (classText.includes("adult")) return "sender";
   if (classText.includes("child")) return "receiver";
 
@@ -166,7 +179,8 @@ function inferSpeaker(element) {
     "";
   const lowered = ariaLabel.toLowerCase();
 
-  if (lowered.includes("you sent") || lowered.includes("sent by you")) return "sender";
+  if (lowered.includes("you sent") || lowered.includes("sent by you"))
+    return "sender";
   if (lowered.includes("sent by")) return "receiver";
   if (centerX > viewportCenter + 80) return "sender";
   if (centerX < viewportCenter - 80) return "receiver";
@@ -186,7 +200,7 @@ function buildMessage(node, overrides = {}) {
     platform: pagePlatform(),
     timestamp: overrides.timestamp || null,
     source: overrides.source || "generic",
-    top: Math.round(rect.top)
+    top: Math.round(rect.top),
   };
 }
 
@@ -206,13 +220,19 @@ function collectUniqueMessages(nodes, source) {
 
 function extractInstagramMessages() {
   const results = [];
-  const messageContainers = document.querySelectorAll("[role='main'] [role='listitem'], main li, main article div");
+  const messageContainers = document.querySelectorAll(
+    "[role='main'] [role='listitem'], main li, main article div",
+  );
   for (const container of messageContainers) {
     const leaves = [...container.querySelectorAll("[dir='auto']")].filter(
-      (node) => !node.querySelector("[dir='auto']")
+      (node) => !node.querySelector("[dir='auto']"),
     );
     for (const leaf of leaves) {
-      const aria = normalizeText(container.getAttribute("aria-label") || leaf.getAttribute("aria-label") || "");
+      const aria = normalizeText(
+        container.getAttribute("aria-label") ||
+          leaf.getAttribute("aria-label") ||
+          "",
+      );
       let speaker = inferSpeaker(leaf);
       if (aria.toLowerCase().includes("you sent")) speaker = "sender";
       if (aria.toLowerCase().includes("sent by")) speaker = "receiver";
@@ -231,10 +251,10 @@ function extractGenericMessages() {
     "[role='row'] [dir='auto']",
     "main [dir='auto']",
     "article [dir='auto']",
-    "div[dir='auto']"
+    "div[dir='auto']",
   ];
   const nodes = [...document.querySelectorAll(selectors.join(", "))].filter(
-    (node) => !node.querySelector("[dir='auto']")
+    (node) => !node.querySelector("[dir='auto']"),
   );
   return collectUniqueMessages(nodes, "generic");
 }
@@ -261,10 +281,12 @@ function extractConversationMessages() {
 }
 
 function renderFlaggedMessages(result) {
-  const items = Array.isArray(result?.flagged_messages) ? result.flagged_messages : [];
+  const items = Array.isArray(result?.flagged_messages)
+    ? result.flagged_messages
+    : [];
 
   const reasonChip = (label) =>
-    `<span style="display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;background:#fff1ef;color:#c4554d;border:1px solid rgba(196,85,77,0.14);font-size:11px;font-weight:700;">${escapeHtml(label)}</span>`;
+    `<span style="display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;background:rgba(254,242,242,0.9);color:#b91c1c;border:1px solid rgba(252,165,165,0.5);font-size:11px;font-weight:600;backdrop-filter:blur(8px)">${escapeHtml(label)}</span>`;
 
   const reasonsBlock = (reasons) => {
     const list = (reasons || []).map((r) => threatLabel(r)).filter(Boolean);
@@ -273,36 +295,55 @@ function renderFlaggedMessages(result) {
     }
     const chips = list.map((r) => reasonChip(r)).join("");
     return `<div style="margin-top:6px;">
-      <div style="font-size:11px;font-weight:700;color:#c4554d;margin-bottom:6px;">Why it was flagged</div>
+      <div style="font-size:12px;font-weight:600;font-family:${KANDOR_FONT_SERIF};color:#9f1239;margin-bottom:6px;">Why it was flagged</div>
       <div style="display:flex;flex-wrap:wrap;align-items:center;column-gap:6px;row-gap:6px;">${chips}</div>
     </div>`;
   };
 
+  const cardGlass = [
+    "box-sizing:border-box",
+    "width:100%",
+    "margin-top:8px",
+    "padding:16px 18px",
+    "border-radius:20px",
+    "background:linear-gradient(135deg, rgba(255,255,255, 0.6), rgba(255,255,255, 0.35))",
+    "border:1px solid rgba(255,255,255,0.55)",
+    "box-shadow:0 20px 50px -12px rgba(99,102,241,0.18), 0 8px 24px rgba(15,23,42,0.08), inset 0 1px 0 0 rgba(255,255,255,0.45)",
+    "backdrop-filter:blur(20px) saturate(180%)",
+    "-webkit-backdrop-filter:blur(20px) saturate(180%)",
+    "color:#1f2937",
+  ].join(";");
+
   const html = items
     .map(
       (item) => `
-        <div style="margin-top:8px;padding:10px 12px;border-radius:12px;background:#fffdfa;border:1px solid rgba(55,53,47,0.12);color:#37352f;">
-          <div style="color:#2f7d4f;"><b>${escapeHtml(item.speaker || "unknown")}</b>: ${escapeHtml(item.text || "")}</div>
+        <div style="${cardGlass}">
+          <div style="color:#15803d;font-family:${KANDOR_FONT_SANS}"><b style="font-family:${KANDOR_FONT_SANS};font-weight:600">${escapeHtml(item.speaker || "unknown")}</b>: ${escapeHtml(item.text || "")}</div>
           ${reasonsBlock(item.reasons)}
           <div style="margin-top:6px;color:#6b6a67;font-size:11px;">Matched phrases: ${escapeHtml((item.phrases || []).join(" | ") || "None")}</div>
         </div>
-      `
+      `,
     )
     .join("");
 
+  const sectionHeading = `<b style="display:block;box-sizing:border-box;padding:0 0 6px;font-family:${KANDOR_FONT_SERIF};font-size:13px;font-weight:600;color:#111827">Flagged messages</b>`;
+
+  const outerFlagged = (inner) =>
+    `<div style="box-sizing:border-box;width:100%;margin-top:10px;padding:0;background:transparent;border:0;box-shadow:none;font-size:12px;line-height:1.4;font-family:${KANDOR_FONT_SANS}">${inner}</div>`;
+
   if (items.length) {
-    return `<div style="margin-top:10px;font-size:12px;line-height:1.4;"><b>Flagged messages</b>${html}</div>`;
+    return outerFlagged(`${sectionHeading}${html}`);
   }
 
   const fallback = normalizeText(result?.highest_risk_message);
   if (!fallback) return "";
-  return `<div style="margin-top:10px;font-size:12px;line-height:1.4;">
-    <b>Flagged messages</b>
-    <div style="margin-top:8px;padding:10px 12px;border-radius:12px;background:#fffdfa;border:1px solid rgba(55,53,47,0.12);color:#37352f;">
-      <div style="color:#2f7d4f;">Highest-risk excerpt</div>
+  return outerFlagged(
+    `${sectionHeading}
+    <div style="${cardGlass}">
+      <div style="color:#15803d;font-family:${KANDOR_FONT_SANS};font-weight:600">Highest-risk excerpt</div>
       <div style="margin-top:6px;">${escapeHtml(fallback)}</div>
-    </div>
-  </div>`;
+    </div>`,
+  );
 }
 
 function conciseActionLabel(action) {
@@ -310,7 +351,7 @@ function conciseActionLabel(action) {
     none: "No action",
     monitor: "Monitor",
     warn_user: "Warn user",
-    block_and_alert_guardian: "Block and alert guardian"
+    block_and_alert_guardian: "Block and alert guardian",
   };
   return labels[action] || action || "Monitor";
 }
@@ -332,7 +373,7 @@ function threatLabel(threat) {
     SELF_HARM_CONTENT: "Self-harm content",
     HATE_HARASSMENT: "Harassment",
     FINANCIAL_SCAM: "Financial scam",
-    OBFUSCATION: "Hidden language"
+    OBFUSCATION: "Hidden language",
   };
   return labels[threat] || threat.replaceAll("_", " ").toLowerCase();
 }
@@ -342,7 +383,7 @@ function renderThreatChips(threats) {
   return threats
     .map(
       (threat) =>
-        `<span style="display:inline-flex;align-items:center;margin:4px 6px 0 0;padding:5px 9px;border-radius:999px;background:#fff1ef;color:#c4554d;border:1px solid rgba(196,85,77,0.14);font-size:11px;font-weight:700;">${escapeHtml(threatLabel(threat))}</span>`
+        `<span style="display:inline-flex;align-items:center;margin:4px 6px 0 0;padding:5px 9px;border-radius:999px;background:rgba(254,242,242,0.85);color:#b91c1c;border:1px solid rgba(252,165,165,0.45);font-size:11px;font-weight:600;backdrop-filter:blur(6px)">${escapeHtml(threatLabel(threat))}</span>`,
     )
     .join("");
 }
@@ -356,11 +397,13 @@ function findMatchInString(hay, needle) {
   if (!n || n.length < 2) return null;
   const h = String(hay);
   let i = h.indexOf(n);
-  if (i >= 0) return { start: i, end: i + n.length, text: h.slice(i, i + n.length) };
+  if (i >= 0)
+    return { start: i, end: i + n.length, text: h.slice(i, i + n.length) };
   const lo = h.toLowerCase();
   const nl = n.toLowerCase();
   i = lo.indexOf(nl);
-  if (i >= 0) return { start: i, end: i + n.length, text: h.slice(i, i + n.length) };
+  if (i >= 0)
+    return { start: i, end: i + n.length, text: h.slice(i, i + n.length) };
   const words = normalizeText(n)
     .split(" ")
     .map((w) => w.trim())
@@ -375,7 +418,8 @@ function findMatchInString(hay, needle) {
 function shouldSkipTextNode(node) {
   if (!node?.parentElement) return true;
   const p = node.parentElement;
-  if (["SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA", "IFRAME"].includes(p.tagName)) return true;
+  if (["SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA", "IFRAME"].includes(p.tagName))
+    return true;
   if (p.closest(HT_UI_SEL)) return true;
   return false;
 }
@@ -387,7 +431,7 @@ function collectTextNodes(root) {
     acceptNode(node) {
       if (shouldSkipTextNode(node)) return NodeFilter.FILTER_REJECT;
       return NodeFilter.FILTER_ACCEPT;
-    }
+    },
   });
   let n = w.nextNode();
   while (n) {
@@ -408,19 +452,22 @@ function tryHighlightInTextNode(textNode, pattern, reasonCodes) {
 
   const span = document.createElement("span");
   span.className = HT_FLAG;
-  span.setAttribute("data-hacktech-reasons", JSON.stringify(Array.isArray(reasonCodes) ? reasonCodes : []));
+  span.setAttribute(
+    "data-hacktech-reasons",
+    JSON.stringify(Array.isArray(reasonCodes) ? reasonCodes : []),
+  );
   span.setAttribute("tabindex", "0");
   span.setAttribute("role", "button");
   span.setAttribute(
     "aria-label",
-    `${APP_ALERT_TITLE}: flagged message. Hover for why it was flagged.`
+    `${APP_ALERT_TITLE}: flagged message. Hover for why it was flagged.`,
   );
   span.appendChild(document.createTextNode(matchedText));
   span.style.cssText = [
     "outline:2px solid #c4554d",
     "outline-offset:1px",
     "box-decoration-break:clone",
-    "-webkit-box-decoration-break:clone"
+    "-webkit-box-decoration-break:clone",
   ].join(";");
 
   const afterNode = document.createTextNode(after);
@@ -435,7 +482,10 @@ function buildFlagPatterns(flagged) {
   const byPattern = new Map();
   for (const item of flagged) {
     const reasons = Array.isArray(item?.reasons) ? item.reasons : [];
-    const parts = [item?.text, ...(Array.isArray(item?.phrases) ? item.phrases : [])]
+    const parts = [
+      item?.text,
+      ...(Array.isArray(item?.phrases) ? item.phrases : []),
+    ]
       .map((p) => String(p).trim())
       .filter((p) => p.length >= 2);
     for (const p of parts) {
@@ -483,16 +533,17 @@ function getOrCreateFlagPopover() {
     "z-index:2147483646",
     "display:none",
     "max-width:min(90vw,320px)",
-    "padding:10px 12px",
-    "border-radius:12px",
-    "border:1px solid rgba(55,53,47,0.12)",
-    "box-shadow:0 12px 32px rgba(15,23,42,0.2)",
-    "background:#fff",
-    "font-family:'Open Sans',ui-sans-serif,sans-serif",
+    "padding:12px 14px",
+    "border-radius:16px",
+    "border:0",
+    "outline:0",
+    "box-shadow:0 20px 50px -12px rgba(99,102,241,0.2),0 8px 24px rgba(15,23,42,0.1)",
+    "background:linear-gradient(135deg,#eff6ff 0%,#eef2ff 45%,#faf5ff 100%)",
+    `font-family:${KANDOR_FONT_SANS}`,
     "font-size:11px",
-    "pointer-events:auto"
+    "pointer-events:auto",
   ].join(";");
-  el.innerHTML = `<div class="ht-popover-brand" style="font-weight:700;font-size:12px;margin-bottom:2px;color:#c4554d;">${escapeHtml(APP_ALERT_TITLE)}</div><div class="ht-popover-title" style="font-weight:700;margin-bottom:8px;color:#6b6a67;font-size:11px;">Why it was flagged</div><div class="ht-popover-chips" style="display:flex;flex-wrap:wrap;gap:6px;"></div>`;
+  el.innerHTML = `<div class="ht-popover-brand" style="font-weight:600;font-size:14px;margin-bottom:4px;font-family:${KANDOR_FONT_SERIF};background:linear-gradient(135deg,#111827,#4b5563);-webkit-background-clip:text;background-clip:text;color:transparent;">${escapeHtml(APP_ALERT_TITLE)}</div><div class="ht-popover-title" style="font-weight:600;margin-bottom:8px;font-family:${KANDOR_FONT_SERIF};color:#4b5563;font-size:12px">Why it was flagged</div><div class="ht-popover-chips" style="display:flex;flex-wrap:wrap;gap:6px"></div>`;
   el.addEventListener("pointerenter", () => cancelHideFlagPopover());
   el.addEventListener("pointerleave", () => scheduleHideFlagPopover());
   document.body.appendChild(el);
@@ -521,11 +572,12 @@ function showFlagHoverPopover(rect, reasonCodes) {
         "align-items:center",
         "padding:5px 9px",
         "border-radius:999px",
-        "background:#fff1ef",
-        "color:#c4554d",
-        "border:1px solid rgba(196,85,77,0.14)",
+        "background:rgba(254,242,242,0.9)",
+        "color:#b91c1c",
+        "border:1px solid rgba(252,165,165,0.5)",
         "font-size:11px",
-        "font-weight:700"
+        "font-weight:600",
+        "backdrop-filter:blur(6px)",
       ].join(";");
       chips.appendChild(s);
     }
@@ -536,7 +588,8 @@ function showFlagHoverPopover(rect, reasonCodes) {
   const pw = pop.offsetWidth;
   let top = rect.bottom + pad;
   let left = Math.min(Math.max(8, rect.left), window.innerWidth - pw - 8);
-  if (left + pw > window.innerWidth - 8) left = Math.max(8, window.innerWidth - pw - 8);
+  if (left + pw > window.innerWidth - 8)
+    left = Math.max(8, window.innerWidth - pw - 8);
   if (top + ph > window.innerHeight - 8) {
     top = rect.top - ph - pad;
   }
@@ -588,7 +641,7 @@ function ensureFlagPointerListeners() {
       cancelHideFlagPopover();
       showFlagHoverPopover(span.getBoundingClientRect(), reasonCodes);
     },
-    true
+    true,
   );
   document.addEventListener(
     "pointerleave",
@@ -603,19 +656,24 @@ function ensureFlagPointerListeners() {
       if (!(t instanceof Element)) return;
       if (t.classList?.contains(HT_FLAG)) scheduleHideFlagPopover();
     },
-    true
+    true,
   );
-  window.addEventListener("scroll", () => {
-    if (flagHoverPopover?.style.display === "block") scheduleHideFlagPopover();
-  },
-  { capture: true, passive: true }
+  window.addEventListener(
+    "scroll",
+    () => {
+      if (flagHoverPopover?.style.display === "block")
+        scheduleHideFlagPopover();
+    },
+    { capture: true, passive: true },
   );
 }
 
 function applyFlaggedTextHighlights(result) {
   suppressMutationScan++;
   try {
-    const flagged = Array.isArray(result?.flagged_messages) ? result.flagged_messages : [];
+    const flagged = Array.isArray(result?.flagged_messages)
+      ? result.flagged_messages
+      : [];
     if (!flagged.length) {
       clearFlaggedHighlights();
       return;
@@ -649,7 +707,7 @@ function ensureOpenSans() {
   const link = document.createElement("link");
   link.id = "hacktech-open-sans";
   link.rel = "stylesheet";
-  link.href = OPEN_SANS_CSS_URL;
+  link.href = KANDOR_FONTS_CSS_URL;
   document.head.appendChild(link);
 }
 
@@ -666,10 +724,11 @@ function showBanner(result, threshold) {
     scanned: Number(result?.scanned_messages || 0),
     flagged: (result?.flagged_messages || []).map((m) => ({
       t: m?.text,
-      r: m?.reasons
-    }))
+      r: m?.reasons,
+    })),
   });
-  if (bannerSignature === lastBannerSignature && now - lastBannerAt < 3000) return;
+  if (bannerSignature === lastBannerSignature && now - lastBannerAt < 3000)
+    return;
   lastBannerAt = now;
   lastBannerSignature = bannerSignature;
 
@@ -678,58 +737,63 @@ function showBanner(result, threshold) {
 
   const banner = document.createElement("div");
   banner.id = "hacktech-safety-banner";
-  banner.style.position = "fixed";
-  banner.style.top = "16px";
-  banner.style.right = "16px";
-  banner.style.maxWidth = "420px";
-  banner.style.zIndex = "2147483647";
-  banner.style.padding = "16px";
-  banner.style.borderRadius = "18px";
-  banner.style.border = "1px solid rgba(55,53,47,0.14)";
-  banner.style.borderLeft = "5px solid #c4554d";
-  banner.style.background = "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(251,251,250,0.96))";
-  banner.style.color = "#37352f";
-  banner.style.fontFamily = "'Open Sans', ui-sans-serif, sans-serif";
-  banner.style.boxShadow = "0 18px 45px rgba(15,23,42,0.16)";
-  banner.style.backdropFilter = "blur(10px)";
+  banner.style.cssText = [
+    "position:fixed",
+    "top:16px",
+    "right:16px",
+    "max-width:420px",
+    "z-index:2147483647",
+    "padding:18px 18px 16px",
+    "border-radius:20px",
+    "border:0",
+    "outline:0",
+    "box-shadow:0 20px 50px -12px rgba(99,102,241,0.2),0 8px 24px rgba(15,23,42,0.1)",
+    "background:linear-gradient(135deg,#eff6ff 0%,#eef2ff 45%,#faf5ff 100%)",
+    `color:#1f2937`,
+    `font-family:${KANDOR_FONT_SANS}`,
+  ].join(";");
   const flaggedSection = renderFlaggedMessages(result);
   const evaluation = conciseEvaluation(result.evaluation);
   const riskDisplay = Math.round(Number(result?.danger_rating || 0));
-  const confDisplay = Math.round(Number(result?.confidence_score ?? result?.confidence ?? 0));
+  const confDisplay = Math.round(
+    Number(result?.confidence_score ?? result?.confidence ?? 0),
+  );
   banner.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;flex-wrap:wrap;">
-      <div style="font-weight:700;font-size:15px;">${escapeHtml(APP_ALERT_TITLE)}</div>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+      <div style="font-weight:600;font-size:1.15rem;line-height:1.2;letter-spacing:-0.02em;max-width:14rem;font-family:${KANDOR_FONT_SERIF},serif;background:linear-gradient(135deg,#111827,#4b5563);-webkit-background-clip:text;background-clip:text;color:transparent">${escapeHtml(APP_ALERT_TITLE)}</div>
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
-        <div style="padding:4px 8px;border-radius:999px;background:#fff1ef;color:#c4554d;font-size:11px;font-weight:700;">Risk ${riskDisplay}</div>
-        <div style="padding:4px 8px;border-radius:999px;background:rgba(55,53,47,0.08);color:#37352f;font-size:11px;font-weight:700;">Confidence ${confDisplay}</div>
+        <div style="padding:5px 10px;border-radius:999px;font-size:11px;font-weight:600;background:rgba(254,242,242,0.9);color:#b91c1c;border:1px solid rgba(252,165,165,0.5);backdrop-filter:blur(8px)">Risk ${riskDisplay}</div>
+        <div style="padding:5px 10px;border-radius:999px;font-size:11px;font-weight:600;background:rgba(255,255,255,0.5);color:#111827;border:1px solid rgba(255,255,255,0.5);backdrop-filter:blur(8px)">Confidence ${confDisplay}</div>
       </div>
     </div>
-    <div style="font-size:12px;line-height:1.6;">
+    <div style="font-size:12px;line-height:1.65;color:#374151">
       <div>${renderThreatChips(result.threats_detected || [])}</div>
       ${
         evaluation
-          ? `<div style="margin-top:10px;color:#4b5563;">${escapeHtml(evaluation)}</div>`
+          ? `<div style="margin-top:10px;">${escapeHtml(evaluation)}</div>`
           : ""
       }
     </div>
     ${
       flaggedSection
-        ? `<div style="margin-top:10px;font-size:12px;line-height:1.5;background:#f7f6f3;border-radius:12px;padding:10px 12px;border:1px solid rgba(55,53,47,0.1);max-height:min(50vh,320px);overflow:auto;">
+        ? `<div style="box-sizing:border-box;width:100%;margin-top:12px;font-size:12px;line-height:1.5;max-height:min(50vh,320px);overflow:auto;padding:0;background:transparent;border:0;box-shadow:none">
             ${flaggedSection}
           </div>`
         : ""
     }
-    <div style="margin-top:12px;font-size:12px;line-height:1.4;">
-      Recommended Action: <b>${escapeHtml(conciseActionLabel(result.recommended_action || "monitor"))}</b>
+    <div style="margin-top:12px;font-size:12px;line-height:1.45;color:#4b5563">
+      <span style="font-family:${KANDOR_FONT_SANS};font-weight:600">Recommended action</span>: ${escapeHtml(conciseActionLabel(result.recommended_action || "monitor"))}
     </div>
-    <button id="hacktech-safety-close" style="margin-top:10px;background:#fff;color:#37352f;border:1px solid rgba(55,53,47,0.15);border-radius:10px;padding:7px 12px;cursor:pointer;font-weight:600;">I Understand</button>
+    <button id="hacktech-safety-close" type="button" style="margin-top:12px;width:100%;padding:9px 14px;cursor:pointer;font-weight:600;font-size:13px;border-radius:12px;border:none;color:#fff;background:linear-gradient(90deg,#2563eb,#4f46e5);box-shadow:0 4px 14px rgba(79,70,229,0.35);font-family:${KANDOR_FONT_SANS}">I Understand</button>
   `;
 
   document.body.appendChild(banner);
-  banner.querySelector("#hacktech-safety-close")?.addEventListener("click", () => {
-    clearFlaggedHighlights();
-    banner.remove();
-  });
+  banner
+    .querySelector("#hacktech-safety-close")
+    ?.addEventListener("click", () => {
+      clearFlaggedHighlights();
+      banner.remove();
+    });
 }
 
 function pageTextForScanning() {
@@ -739,14 +803,14 @@ function pageTextForScanning() {
   return stripFrameworkNoiseFromVisibleText(raw);
 }
 
-function scanPage(noSignatureCheck=false) {
+function scanPage(noSignatureCheck = false) {
   const html = currentPageHtml();
   const pageText = pageTextForScanning();
   const messages = extractConversationMessages();
   const signature = conversationSignature(messages);
   if (signature === lastConversationSignature && !noSignatureCheck) return;
   lastConversationSignature = signature;
-  console.log("[Hacktech Safety] Scanning page", window.location.href, signature);
+  console.log("[kandor] Scanning page", window.location.href, signature);
 
   chrome.runtime.sendMessage(
     {
@@ -755,59 +819,72 @@ function scanPage(noSignatureCheck=false) {
       html,
       pageText,
       platform: pagePlatform(),
-      messages
+      messages,
     },
     (response) => {
       if (chrome.runtime.lastError) {
-        console.warn("[Hacktech Safety] Runtime error", chrome.runtime.lastError.message);
+        console.warn(
+          "[kandor] Runtime error",
+          chrome.runtime.lastError.message,
+        );
         return;
       }
       if (!response?.success) {
-        console.warn("[Hacktech Safety] Scan failed", response);
+        console.warn("[kandor] Scan failed", response);
         return;
       }
       if (response?.skipped) {
         if (response?.reason === "not_social") {
-          console.log("[Hacktech Safety] Not a supported social page; scan skipped");
+          console.log("[kandor] Not a supported social page; scan skipped");
         } else {
-          console.warn("[Hacktech Safety] Scan skipped", response);
+          console.warn("[kandor] Scan skipped", response);
         }
         return;
       }
-      console.log("[Hacktech Safety] Scan result", response.result);
+      console.log("[kandor] Scan result", response.result);
       applyFlaggedTextHighlights(response.result);
       showBanner(response.result, response.settings?.warningThreshold);
       setLastResult(response.result);
-    }
+    },
   );
 }
 
 chrome.runtime.onMessage.addListener((message) => {
   if (message?.type === "TRIGGER_SCAN") {
-    console.log("[Hacktech Safety] Manual or alarm-triggered scan");
+    console.log("[kandor] Manual or alarm-triggered scan");
     scanPage();
   }
 });
 
 chrome.runtime.onMessage.addListener((message) => {
   if (message?.type === "TRIGGER_SCAN_NO_SIGNATURE_CHECK") {
-    console.log("[Hacktech Safety] Manual or alarm-triggered scan without signature check");
-    scanPage(noSignatureCheck=true);
+    console.log(
+      "[kandor] Manual or alarm-triggered scan without signature check",
+    );
+    scanPage((noSignatureCheck = true));
   }
-})
+});
 
-console.log("[Hacktech Safety] Content script loaded on", window.location.href);
+console.log("[kandor] Content script loaded on", window.location.href);
 window.setTimeout(scanPage, 1500);
 const observer = new MutationObserver((mutations) => {
   if (suppressMutationScan > 0) return;
   const onlyExtensionUiChanges = mutations.every((mutation) => {
-    const target = mutation.target instanceof Element ? mutation.target : mutation.target?.parentElement;
+    const target =
+      mutation.target instanceof Element
+        ? mutation.target
+        : mutation.target?.parentElement;
     if (target?.closest?.(HT_UI_SEL)) return true;
     if (target?.id === "hacktech-open-sans") return true;
     for (const node of mutation.addedNodes) {
       if (node instanceof Element) {
-        if (node.id === "hacktech-flag-hover-popover" || node.classList?.contains(HT_FLAG)) return true;
-        if (node.querySelector?.(`.${HT_FLAG},#hacktech-flag-hover-popover`)) return true;
+        if (
+          node.id === "hacktech-flag-hover-popover" ||
+          node.classList?.contains(HT_FLAG)
+        )
+          return true;
+        if (node.querySelector?.(`.${HT_FLAG},#hacktech-flag-hover-popover`))
+          return true;
       }
     }
     return false;
@@ -815,4 +892,8 @@ const observer = new MutationObserver((mutations) => {
   if (onlyExtensionUiChanges) return;
   window.setTimeout(scanPage, 1200);
 });
-observer.observe(document.documentElement, { subtree: true, childList: true, characterData: true });
+observer.observe(document.documentElement, {
+  subtree: true,
+  childList: true,
+  characterData: true,
+});
