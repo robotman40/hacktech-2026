@@ -32,6 +32,8 @@ K2_HEADERS = {
 }
 RESULT_CACHE: dict[str, dict[str, Any]] = {}
 _SOCIAL_DOMAINS: set[str] = {
+    "localhost",
+    "127.0.0.1",
     "instagram.com",
     "facebook.com",
     "messenger.com",

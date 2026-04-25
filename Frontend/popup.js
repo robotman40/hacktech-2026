@@ -91,9 +91,12 @@ async function loadView() {
   chrome.runtime.sendMessage({ type: "GET_LAST_RESULT" }, (response) => {
     if (!response?.success || !response.result) {
       updateResultPill(null);
+      document.getElementById("lastResult").innerHTML =
+        `<div class="mutedLine">No saved report for this tab yet.</div>`;
       return;
     }
     const result = response.result;
+    const tabId = response.tabId;
     updateResultPill(result);
 
     const extractedMessages = renderList(
@@ -120,6 +123,7 @@ async function loadView() {
     );
 
     document.getElementById("lastResult").innerHTML = `
+      <div><b>Tab report</b>: ${escapeHtml(tabId != null ? `Tab ${tabId}` : "Current tab")}</div>
       <div><b>Page</b>: <span class="mono">${escapeHtml(result.pageUrl || "n/a")}</span></div>
       <div><b>Danger</b>: ${escapeHtml(result.danger_rating)}</div>
       <div><b>Confidence</b>: ${escapeHtml(result.confidence_score)}</div>
