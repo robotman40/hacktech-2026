@@ -17,6 +17,105 @@ load_dotenv()
 router = fastapi.APIRouter()
 client = None
 
+RISK_RULES = [
+    {
+        "label": "GROOMING",
+        "weight": 18,
+        "patterns": [
+            r"don't tell your parents",
+            r"our secret",
+            r"keep this between us",
+            r"special to me",
+            r"only you understand me",
+            r"you're so mature for your age",
+            r"i can send you a gift",
+        ],
+    },
+    {
+        "label": "SEXUAL_CONTENT",
+        "weight": 45,
+        "patterns": [
+            r"nude",
+            r"show me your body",
+            r"what are you wearing",
+            r"send (me )?(a )?pic",
+            r"sexy",
+            r"turn me on",
+        ],
+    },
+    {
+        "label": "PII_SOLICITATION",
+        "weight": 28,
+        "patterns": [
+            r"your address",
+            r"where do you live",
+            r"what school",
+            r"home alone",
+            r"send your location",
+            r"what part of town",
+            r"what is your phone number",
+            r"when are your parents home",
+        ],
+    },
+    {
+        "label": "PLATFORM_MIGRATION",
+        "weight": 24,
+        "patterns": [
+            r"whatsapp",
+            r"telegram",
+            r"discord",
+            r"snapchat",
+            r"signal",
+            r"video chat",
+            r"call me on",
+            r"talk somewhere else",
+            r"move to another app",
+            r"text me instead",
+            r"meet me",
+        ],
+    },
+    {
+        "label": "THREATS_COERCION",
+        "weight": 30,
+        "patterns": [
+            r"or else",
+            r"regret this",
+            r"post your",
+            r"if you loved me",
+            r"don't make me angry",
+            r"i'll ruin your life",
+            r"i'll share this",
+        ],
+    },
+    {
+        "label": "SELF_HARM_CONTENT",
+        "weight": 50,
+        "patterns": [r"kill yourself", r"hurt yourself", r"cut yourself"],
+    },
+    {
+        "label": "HATE_HARASSMENT",
+        "weight": 16,
+        "patterns": [r"worthless", r"stupid", r"hate you", r"nobody wants you"],
+    },
+    {
+        "label": "FINANCIAL_SCAM",
+        "weight": 30,
+        "patterns": [
+            r"gift card",
+            r"password",
+            r"login code",
+            r"send me money",
+            r"bank account",
+            r"verification code",
+        ],
+    },
+    {
+        "label": "OBFUSCATION",
+        "weight": 10,
+        "patterns": [r"s3x", r"m33t", r"p@rk", r"w h a t s a p p", r"t3l3gr4m"],
+    },
+]
+
 def _get_client():
     global client
     if client is not None:
@@ -48,20 +147,77 @@ def _normalize_phrase(phrase: str) -> str:
     return re.sub(r"\s+", " ", phrase).strip(" \n\r\t\"'.,:;!?")
 
 
-def _message_risk_score(text: str) -> int:
+def _normalize_for_matching(text: str) -> str:
     lowered = text.lower()
+    lowered = re.sub(r"[@$]", "a", lowered)
+    lowered = re.sub(r"0", "o", lowered)
+    lowered = re.sub(r"1", "i", lowered)
+    lowered = re.sub(r"3", "e", lowered)
+    lowered = re.sub(r"5", "s", lowered)
+    lowered = re.sub(r"[^a-z0-9\s]", " ", lowered)
+    return re.sub(r"\s+", " ", lowered).strip()
+
+
+def _run_rules(text: str) -> tuple[list[str], list[str], int]:
+    normalized = _normalize_for_matching(text)
+    labels = []
+    phrases = []
     score = 0
-    if any(token in lowered for token in ["don't tell your parents", "our secret", "special to me", "gift"]):
-        score += 18
-    if any(token in lowered for token in ["nude", "show me your body", "what are you wearing"]):
-        score += 45
-    if any(token in lowered for token in ["your address", "where do you live", "what school", "home alone"]):
-        score += 28
-    if any(token in lowered for token in ["whatsapp", "telegram", "discord", "snapchat", "video chat", "meet me"]):
-        score += 24
-    if any(token in lowered for token in ["or else", "regret this", "post your", "if you loved me"]):
-        score += 30
+    for rule in RISK_RULES:
+        matches = []
+        for pattern in rule["patterns"]:
+            matches.extend(re.findall(pattern, normalized))
+        if matches:
+            labels.append(rule["label"])
+            score += int(rule["weight"])
+            for match in matches[:3]:
+                phrase = _normalize_phrase(match)
+                if phrase and phrase not in phrases:
+                    phrases.append(phrase)
+    return labels, phrases[:6], score
+
+
+def _message_risk_score(text: str) -> int:
+    labels, _phrases, score = _run_rules(text)
+    normalized = _normalize_for_matching(text)
+    if "sender" in normalized and "receiver" in normalized:
+        score += 2
+    if "?" in text and any(label in labels for label in ["PII_SOLICITATION", "GROOMING"]):
+        score += 4
     return score
+
+
+def _compute_conversation_boosts(messages: list[dict[str, Any]]) -> tuple[int, list[str]]:
+    if not messages:
+        return 0, []
+
+    boost = 0
+    notes = []
+    sender_msgs = [m for m in messages if str(m.get("speaker")) == "sender"]
+    joined_sender = " ".join(str(m.get("text") or "") for m in sender_msgs)
+    joined_norm = _normalize_for_matching(joined_sender)
+
+    if "don't tell your parents" in joined_norm and any(
+        token in joined_norm for token in ["whatsapp", "telegram", "snapchat", "discord", "signal"]
+    ):
+        boost += 14
+        notes.append("secrecy plus migration pattern")
+
+    if any(token in joined_norm for token in ["your address", "send your location", "where do you live"]) and any(
+        token in joined_norm for token in ["meet me", "whatsapp", "call me on", "another app"]
+    ):
+        boost += 12
+        notes.append("contact plus location escalation")
+
+    sender_questions = sum(1 for m in sender_msgs if "?" in str(m.get("text") or ""))
+    receiver_questions = sum(
+        1 for m in messages if str(m.get("speaker")) == "receiver" and "?" in str(m.get("text") or "")
+    )
+    if sender_questions >= 3 and sender_questions > receiver_questions:
+        boost += 6
+        notes.append("sender-led probing")
+
+    return boost, notes
 
 
 def _find_flagged_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -71,18 +227,7 @@ def _find_flagged_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any
         if not text:
             continue
 
-        categories = []
-        lowered = text.lower()
-        if any(token in lowered for token in ["don't tell your parents", "our secret", "special to me", "gift"]):
-            categories.append("GROOMING")
-        if any(token in lowered for token in ["nude", "show me your body", "what are you wearing"]):
-            categories.append("SEXUAL_CONTENT")
-        if any(token in lowered for token in ["your address", "where do you live", "what school", "home alone"]):
-            categories.append("PII_SOLICITATION")
-        if any(token in lowered for token in ["whatsapp", "telegram", "discord", "snapchat", "video chat", "meet me"]):
-            categories.append("PLATFORM_MIGRATION")
-        if any(token in lowered for token in ["or else", "regret this", "post your", "if you loved me"]):
-            categories.append("THREATS_COERCION")
+        categories, phrases, score = _run_rules(text)
 
         if categories:
             flagged_messages.append(
@@ -90,6 +235,8 @@ def _find_flagged_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any
                     "speaker": str(message.get("speaker") or "unknown"),
                     "text": text,
                     "reasons": categories,
+                    "phrases": phrases,
+                    "score": score,
                 }
             )
     return flagged_messages
@@ -108,50 +255,32 @@ def _format_messages(messages: list[dict[str, Any]]) -> str:
 
 def _fallback_evaluate(text: str, messages: list[dict[str, Any]] | None = None):
     messages = messages or []
-    rules = [
-        ("GROOMING", 18, [r"don't tell your parents", r"our secret", r"special to me", r"gift"]),
-        ("SEXUAL_CONTENT", 45, [r"nude", r"show me your body", r"what are you wearing"]),
-        ("PII_SOLICITATION", 28, [r"your address", r"where do you live", r"what school", r"home alone"]),
-        ("PLATFORM_MIGRATION", 24, [r"whatsapp", r"telegram", r"discord", r"snapchat", r"video chat", r"meet me"]),
-        ("THREATS_COERCION", 30, [r"or else", r"regret this", r"post your", r"if you loved me"]),
-        ("SELF_HARM_CONTENT", 50, [r"kill yourself", r"hurt yourself"]),
-        ("HATE_HARASSMENT", 16, [r"worthless", r"stupid", r"hate you"]),
-        ("FINANCIAL_SCAM", 30, [r"gift card", r"password", r"login code", r"send me money"]),
-        ("OBFUSCATION", 10, [r"s3x", r"m33t", r"p@rk"])
-    ]
+    threats, flagged_phrases, score = _run_rules(text)
 
-    lowered = text.lower()
-    threats = []
-    score = 0
-    highest_risk_message = None
-    flagged_phrases = []
-    for label, weight, patterns in rules:
-        matched = []
-        for pattern in patterns:
-            matched.extend(re.findall(pattern, lowered))
-        if matched:
-            threats.append(label)
-            score += weight
-            for phrase in matched[:2]:
-                normalized = _normalize_phrase(str(phrase))
-                if normalized and normalized not in flagged_phrases:
-                    flagged_phrases.append(normalized)
-
+    conversation_boost, conversation_notes = _compute_conversation_boosts(messages)
+    score += conversation_boost
     danger_rating = max(0, min(100, score))
-    confidence_score = 28 if not threats else min(90, 48 + len(threats) * 8)
+    confidence_score = 28 if not threats else min(94, 50 + len(threats) * 8 + min(conversation_boost, 12))
     flagged_messages = _find_flagged_messages(messages)
     if flagged_messages:
-        highest_risk_message = max(flagged_messages, key=lambda item: _message_risk_score(item["text"]))["text"]
-    elif any(token in lowered for token in ["gift card", "your address", "or else", "whatsapp", "don't tell your parents"]):
+        highest_risk_message = max(flagged_messages, key=lambda item: int(item.get("score") or 0))["text"]
+    elif any(token in _normalize_for_matching(text) for token in ["gift card", "your address", "or else", "whatsapp", "don't tell your parents"]):
         highest_risk_message = text[:200]
+    else:
+        highest_risk_message = None
+
+    if conversation_notes and flagged_phrases:
+        for note in conversation_notes:
+            if note not in flagged_phrases:
+                flagged_phrases.append(note)
 
     return {
         "danger_rating": danger_rating,
         "confidence_score": confidence_score,
         "evaluation": (
-            "Fallback classifier detected potential child-safety risk patterns in the page content."
+            "Fallback classifier detected potential child-safety risk patterns in the conversation."
             if threats
-            else "Fallback classifier did not detect a strong child-safety risk pattern in the page content."
+            else "Fallback classifier did not detect a strong child-safety risk pattern in the conversation."
         ),
         "threats_detected": threats,
         "flagged_phrases": flagged_phrases[:6],
@@ -209,6 +338,7 @@ def _normalize_result(payload: dict[str, Any]) -> dict[str, Any]:
                 "speaker": str(item.get("speaker") or "unknown"),
                 "text": str(item.get("text") or ""),
                 "reasons": [str(reason) for reason in (item.get("reasons") or [])],
+                "phrases": [str(phrase) for phrase in (item.get("phrases") or [])],
             }
             for item in flagged_messages[:6]
             if isinstance(item, dict)
@@ -285,7 +415,7 @@ async def evaluate(request: fastapi.Request):
       "confidence": integer 0-100,
       "threats_detected": [list of category names from above that are present],
       "flagged_phrases": ["exact short suspicious phrases quoted from the conversation"],
-      "flagged_messages": [{"speaker": "sender/receiver/unknown", "text": "full flagged message", "reasons": ["category names"]}],
+      "flagged_messages": [{"speaker": "sender/receiver/unknown", "text": "full flagged message", "reasons": ["category names"], "phrases": ["matched snippets"]}],
       "evaluation": "2-3 sentence explanation citing specific message content",
       "recommended_action": one of "none" | "monitor" | "warn_user" | "block_and_alert_guardian",
       "highest_risk_message": "quote of the single most concerning message, or null"
@@ -336,8 +466,12 @@ async def evaluate(request: fastapi.Request):
                                         "type": "array",
                                         "items": {"type": "string"},
                                     },
+                                    "phrases": {
+                                        "type": "array",
+                                        "items": {"type": "string"},
+                                    },
                                 },
-                                "required": ["speaker", "text", "reasons"],
+                                "required": ["speaker", "text", "reasons", "phrases"],
                             },
                         },
                         "evaluation": {"type": "string"},

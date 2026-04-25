@@ -14,13 +14,21 @@ async function loadView() {
     const flaggedMessages = (result.flagged_messages || [])
       .map(
         (item) =>
-          `<div style="margin-top:8px;"><b>${item.speaker}</b>: ${item.text}<br/><span class="muted">Reasons: ${(item.reasons || []).join(", ") || "None"}</span></div>`
+          `<div style="margin-top:8px;"><b>${item.speaker}</b>: ${item.text}<br/><span class="muted">Reasons: ${(item.reasons || []).join(", ") || "None"}</span><br/><span class="muted">Matched: ${(item.phrases || []).join(" | ") || "None"}</span></div>`
+      )
+      .join("");
+    const extractedMessages = (result.extracted_messages || [])
+      .slice(-8)
+      .map(
+        (item) =>
+          `<div style="margin-top:8px;"><b>${item.speaker}</b>: ${item.text}<br/><span class="muted">Source: ${item.source || "generic"}</span></div>`
       )
       .join("");
     document.getElementById("lastResult").innerHTML = `
       <b>Danger:</b> ${result.danger_rating}<br/>
       <b>Confidence:</b> ${result.confidence_score}<br/>
       <b>Action:</b> ${result.recommended_action || "monitor"}<br/>
+      <b>Platform:</b> ${result.platform || "generic"}<br/>
       <b>Threats:</b> ${(result.threats_detected || []).join(", ") || "None"}<br/>
       <b>Flagged phrases:</b> ${(result.flagged_phrases || []).join(" | ") || "None"}<br/>
       <b>Messages scanned:</b> ${result.scanned_messages || 0}<br/>
@@ -32,6 +40,9 @@ async function loadView() {
           ? `<div style="margin-top:8px;"><b>Highest-risk message:</b> ${result.highest_risk_message}</div>`
           : ""
       }
+      <div style="margin-top:10px;"><b>Extracted transcript</b></div>
+      ${extractedMessages || '<div class="muted" style="margin-top:8px;">No extracted messages.</div>'}
+      <div style="margin-top:10px;"><b>Flagged messages</b></div>
       ${flaggedMessages}
     `;
   });

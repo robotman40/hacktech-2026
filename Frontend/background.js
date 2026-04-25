@@ -54,6 +54,7 @@ async function postHtmlToBackend(html, pageUrl) {
           pageUrl,
           html,
           pageText: String(pageText || ""),
+          platform: String(arguments[4] || "generic"),
           messages: Array.isArray(messages) ? messages : []
         })
       });
@@ -83,12 +84,21 @@ async function postHtmlToBackend(html, pageUrl) {
               .map((item) => ({
                 speaker: String(item.speaker || "unknown"),
                 text: String(item.text || ""),
-                reasons: Array.isArray(item.reasons) ? item.reasons.map((reason) => String(reason)) : []
+                reasons: Array.isArray(item.reasons) ? item.reasons.map((reason) => String(reason)) : [],
+                phrases: Array.isArray(item.phrases) ? item.phrases.map((phrase) => String(phrase)) : []
               }))
           : [],
         recommended_action: String(payload?.recommended_action || "none"),
         highest_risk_message: payload?.highest_risk_message ? String(payload.highest_risk_message) : null,
-        scanned_messages: Array.isArray(messages) ? messages.length : 0
+        scanned_messages: Array.isArray(messages) ? messages.length : 0,
+        platform: String(payload?.platform || arguments[4] || "generic"),
+        extracted_messages: Array.isArray(messages)
+          ? messages.map((item) => ({
+              speaker: String(item.speaker || "unknown"),
+              text: String(item.text || ""),
+              source: String(item.source || "generic")
+            }))
+          : []
       };
       console.log("[Hacktech Safety] Received result", result);
       await setLastResult(result);
@@ -168,13 +178,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     const html = String(message.html || "").trim();
     const pageText = String(message.pageText || "").trim();
     const pageUrl = String(message.pageUrl || "").trim();
+    const platform = String(message.platform || "generic").trim() || "generic";
     const messages = Array.isArray(message.messages) ? message.messages : [];
     if (!html) {
       sendResponse({ success: false, error: "Missing page HTML" });
       return;
     }
 
-    const result = await postHtmlToBackend(html, pageUrl, pageText, messages);
+    const result = await postHtmlToBackend(html, pageUrl, pageText, messages, platform);
     sendResponse({ success: true, result, settings });
   })().catch((error) => {
     sendResponse({ success: false, error: error.message });
