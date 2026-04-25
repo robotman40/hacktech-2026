@@ -267,7 +267,7 @@ function renderFlaggedMessages(result) {
     `<span style="display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;background:#fff1ef;color:#c4554d;border:1px solid rgba(196,85,77,0.14);font-size:11px;font-weight:700;">${escapeHtml(label)}</span>`;
 
   const reasonsBlock = (reasons) => {
-    const list = (reasons || []).map((r) => threatLabel(r)).filter(Boolean);
+    const list = [...new Set((reasons || []).map((r) => threatLabel(r)).filter(Boolean))];
     if (!list.length) {
       return `<div style="margin-top:6px;color:#6b6a67;font-size:11px;">No reasons listed.</div>`;
     }
@@ -339,7 +339,7 @@ function threatLabel(threat) {
 
 function renderThreatChips(threats) {
   if (!Array.isArray(threats) || !threats.length) return "None";
-  return threats
+  return [...new Set(threats)]
     .map(
       (threat) =>
         `<span style="display:inline-flex;align-items:center;margin:4px 6px 0 0;padding:5px 9px;border-radius:999px;background:#fff1ef;color:#c4554d;border:1px solid rgba(196,85,77,0.14);font-size:11px;font-weight:700;">${escapeHtml(threatLabel(threat))}</span>`
@@ -762,22 +762,13 @@ function scanPage(noSignatureCheck=false) {
         console.warn("[Hacktech Safety] Runtime error", chrome.runtime.lastError.message);
         return;
       }
-      if (!response?.success) {
-        console.warn("[Hacktech Safety] Scan failed", response);
-        return;
-      }
-      if (response?.skipped) {
-        if (response?.reason === "not_social") {
-          console.log("[Hacktech Safety] Not a supported social page; scan skipped");
-        } else {
-          console.warn("[Hacktech Safety] Scan skipped", response);
-        }
+      if (!response?.success || response?.skipped) {
+        console.warn("[Hacktech Safety] Scan skipped or failed", response);
         return;
       }
       console.log("[Hacktech Safety] Scan result", response.result);
       applyFlaggedTextHighlights(response.result);
       showBanner(response.result, response.settings?.warningThreshold);
-      setLastResult(response.result);
     }
   );
 }
