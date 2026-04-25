@@ -769,6 +769,7 @@ function scanPage(noSignatureCheck=false) {
       console.log("[Hacktech Safety] Scan result", response.result);
       applyFlaggedTextHighlights(response.result);
       showBanner(response.result, response.settings?.warningThreshold);
+      setLastResult(response.result);
     }
   );
 }
