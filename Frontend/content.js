@@ -368,26 +368,31 @@ function scoreInstagramConversationRoot(root) {
 }
 
 function findInstagramConversationRoot() {
-  // 1. Explicitly target the chat area, which is usually the second 'section' 
-  // or the 'main' element, while excluding the sidebar.
+  // 1. Target the chat area, excluding the sidebar.
   const mainRoot = document.querySelector("div[role='main']");
-  
   if (!mainRoot) return null;
 
-  // 2. Filter out the sidebar explicitly by checking if the element is 
-  // inside the left-hand navigation/inbox list
-  const isSidebar = (el) => el.closest('div[style*="width: 399px"], .x1mi7zjg, section > div:first-child');
-  
-  // Update your candidate search to ONLY look inside the main chat window
+  // 2. Identify the chat window specifically
   const chatWindow = mainRoot.querySelector('div[role="presentation"]'); 
-  return chatWindow || mainRoot;
-}
+  const rootToSearch = chatWindow || mainRoot;
+
+  const candidates = new Set([rootToSearch]);
+  
+  // 3. Find all 'dir=auto' leaves to build candidate parent containers
+  const leaves = [...rootToSearch.querySelectorAll("[dir='auto']")].filter(
+    (node) =>
+      node instanceof Element &&
+      !node.querySelector("[dir='auto']") &&
+      !instagramIsSidebarOrNavNode(node) &&
+      !node.closest(HT_UI_SEL)
+  );
+
   for (const leaf of leaves) {
     let cursor =
       leaf.closest("[role='listitem'], li, article, section, [role='list']") ||
       leaf.parentElement;
     let hops = 0;
-    while (cursor && cursor !== mainRoot && hops < 5) {
+    while (cursor && cursor !== rootToSearch && hops < 5) {
       candidates.add(cursor);
       cursor = cursor.parentElement;
       hops += 1;
@@ -397,7 +402,7 @@ function findInstagramConversationRoot() {
   let bestRoot = null;
   let bestScore = Number.NEGATIVE_INFINITY;
 
- for (const candidate of candidates) {
+  for (const candidate of candidates) {
     const score = scoreInstagramConversationRoot(candidate);
     if (score > bestScore) {
       bestScore = score;
@@ -405,10 +410,10 @@ function findInstagramConversationRoot() {
     }
   }
 
-  // THESE LINES MUST BE INSIDE THE CURLY BRACE
+  // Ensure the best candidate actually looks like a chat
   if (!bestRoot || bestScore < 6) return null;
-  return bestRoot; 
-    } // <--- This bracket closes findInstagramConversationRoot
+  return bestRoot;
+} // Function properly closed here
 
 function extractInstagramMessages() {
   const activeConversationRoot = findInstagramConversationRoot();
