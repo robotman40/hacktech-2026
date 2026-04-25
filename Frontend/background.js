@@ -37,6 +37,32 @@ async function scheduleAlarm(minutes) {
   chrome.alarms.create("hacktechSafetyScan", { periodInMinutes: Math.max(1, Number(minutes) || 1) });
 }
 
+/** @returns {Promise<{ ok: true, isSocial: boolean } | { ok: false, isSocial: null }>} */
+async function checkIsSocialPage(pageUrl, backendBaseUrl) {
+  const base = String(backendBaseUrl || "").replace(/\/$/, "");
+  if (!base || !pageUrl) {
+    return { ok: false, isSocial: null };
+  }
+  const endpoint = `${base}/v1/is-social`;
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: String(pageUrl) })
+    });
+    if (!response.ok) {
+      console.warn("[Hacktech Safety] is-social check HTTP", response.status);
+      return { ok: false, isSocial: null };
+    }
+    const data = await response.json();
+    const isSocial = data?.is_social === true;
+    return { ok: true, isSocial };
+  } catch (error) {
+    console.warn("[Hacktech Safety] is-social check failed", error);
+    return { ok: false, isSocial: null };
+  }
+}
+
 async function postHtmlToBackend(html, pageUrl) {
   const pageText = arguments[2];
   const messages = arguments[3];
@@ -182,6 +208,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     const messages = Array.isArray(message.messages) ? message.messages : [];
     if (!html) {
       sendResponse({ success: false, error: "Missing page HTML" });
+      return;
+    }
+
+    const socialCheck = await checkIsSocialPage(pageUrl, settings.backendBaseUrl);
+    if (socialCheck.ok && socialCheck.isSocial === false) {
+      sendResponse({ success: true, skipped: true, reason: "not_social" });
       return;
     }
 

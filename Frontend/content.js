@@ -762,8 +762,16 @@ function scanPage(noSignatureCheck=false) {
         console.warn("[Hacktech Safety] Runtime error", chrome.runtime.lastError.message);
         return;
       }
-      if (!response?.success || response?.skipped) {
-        console.warn("[Hacktech Safety] Scan skipped or failed", response);
+      if (!response?.success) {
+        console.warn("[Hacktech Safety] Scan failed", response);
+        return;
+      }
+      if (response?.skipped) {
+        if (response?.reason === "not_social") {
+          console.log("[Hacktech Safety] Not a supported social page; scan skipped");
+        } else {
+          console.warn("[Hacktech Safety] Scan skipped", response);
+        }
         return;
       }
       console.log("[Hacktech Safety] Scan result", response.result);

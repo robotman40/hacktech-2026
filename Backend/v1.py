@@ -7,6 +7,7 @@ import urllib.request
 from typing import Any
 
 import fastapi
+from pydantic import BaseModel
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from google import genai
@@ -699,9 +700,13 @@ def _call_k2_classifier(analysis_text: str, messages: list[dict[str, Any]], plat
     normalized["platform"] = platform or normalized.get("platform") or "generic"
     return normalized
 
+class IsSocialRequest(BaseModel):
+    url: str
+
+
 @router.post("/is-social")
-async def check_url(url: str) -> dict[str, bool]:
-    return {"is_social": _is_social_url(url)}
+async def check_url(body: IsSocialRequest) -> dict[str, bool]:
+    return {"is_social": _is_social_url(body.url)}
 
 @router.post("/evaluate")
 async def evaluate(request: fastapi.Request):
