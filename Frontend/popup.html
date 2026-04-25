@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <title>Hacktech Safety</title>
+    <style>
+      body {
+        margin: 0;
+        width: 320px;
+        padding: 14px;
+        background: #0f172a;
+        color: #e2e8f0;
+        font-family: Arial, sans-serif;
+      }
+      h1 {
+        margin: 0 0 10px;
+        font-size: 16px;
+      }
+      .row {
+        margin-bottom: 10px;
+      }
+      label {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 12px;
+        color: #cbd5e1;
+      }
+      input[type="text"],
+      input[type="number"] {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 8px;
+        border-radius: 8px;
+        border: 1px solid #334155;
+        background: #111827;
+        color: #f8fafc;
+      }
+      button {
+        width: 100%;
+        padding: 9px;
+        border-radius: 8px;
+        border: 1px solid #334155;
+        background: #1d4ed8;
+        color: #fff;
+        cursor: pointer;
+      }
+      .card {
+        padding: 10px;
+        border-radius: 10px;
+        border: 1px solid #334155;
+        background: #111827;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      .muted {
+        color: #94a3b8;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Hacktech Safety</h1>
+
+    <div class="row">
+      <label>
+        <input id="enabled" type="checkbox" />
+        Extension enabled
+      </label>
+    </div>
+
+    <div class="row">
+      <label for="backendBaseUrl">Backend base URL</label>
+      <input id="backendBaseUrl" type="text" value="http://127.0.0.1:8000" />
+    </div>
+
+    <div class="row">
+      <label for="scanIntervalMinutes">Scan interval (minutes)</label>
+      <input id="scanIntervalMinutes" type="number" min="1" value="1" />
+    </div>
+
+    <div class="row">
+      <label for="warningThreshold">Warning threshold</label>
+      <input id="warningThreshold" type="number" min="0" max="100" value="40" />
+    </div>
+
+    <button id="save">Save Settings</button>
+    <button id="scanNow" style="margin-top:8px;background:#0f766e;">Scan Current Tab Now</button>
+    <button id="openDemo" style="margin-top:8px;background:#7c3aed;">Open Demo Page</button>
+
+    <div style="margin-top:12px" class="card">
+      <div><b>Last result</b></div>
+      <div id="lastResult" class="muted">No scans yet.</div>
+    </div>
+
+    <div style="margin-top:12px" class="card muted">
+      Chromium demo: start the backend, load this folder as an unpacked extension, then click Open Demo Page.
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
