@@ -215,13 +215,6 @@
         backdrop-filter: blur(8px);
         box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
       }
-      .tertiary {
-        grid-column: 1 / -1;
-        background: rgba(255, 255, 255, 0.4);
-        border: 1px solid rgba(255, 255, 255, 0.5);
-        color: var(--muted);
-        backdrop-filter: blur(6px);
-      }
       .card {
         padding: 14px 16px;
         font-size: 12px;
@@ -270,17 +263,6 @@
         color: var(--muted);
         font-family: var(--sans);
       }
-      .note {
-        padding: 12px 14px;
-        border-radius: 14px;
-        border: 1px dashed rgba(99, 102, 241, 0.25);
-        background: rgba(255, 255, 255, 0.35);
-        color: var(--muted);
-        font-size: 12px;
-        line-height: 1.5;
-        font-family: var(--sans);
-        backdrop-filter: blur(8px);
-      }
       .listBlock {
         display: flex;
         flex-direction: column;
@@ -298,6 +280,41 @@
         font-size: 11px;
         word-break: break-word;
       }
+      .settingsDetails {
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.35);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        overflow: hidden;
+        backdrop-filter: blur(8px);
+      }
+      .settingsDetails > summary {
+        list-style: none;
+        cursor: pointer;
+        padding: 12px 14px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--ink);
+        font-family: var(--sans);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        user-select: none;
+      }
+      .settingsDetails > summary::-webkit-details-marker {
+        display: none;
+      }
+      .settingsDetails .settingsChev {
+        flex-shrink: 0;
+        transition: transform 150ms ease;
+        color: var(--muted);
+      }
+      .settingsDetails[open] .settingsChev {
+        transform: rotate(180deg);
+      }
+      .settingsDetails .settingsBody {
+        padding: 0 14px 14px;
+        border-top: 1px solid rgba(255, 255, 255, 0.45);
+      }
     </style>
   </head>
   <body>
@@ -306,57 +323,79 @@
         <div class="eyebrow">Safety workspace</div>
         <h1 id="appBrandTitle">kandor alert</h1>
         <p>
-          Notion-inspired review space for live conversation scans, extracted
-          transcripts, and evidence-rich alerts.
+          Notion-inspired review space for live conversation scans and
+          evidence-rich alerts.
         </p>
       </section>
 
       <section class="section glass">
         <div class="sectionTitle">Controls</div>
 
-        <div class="row">
-          <label class="toggle" for="enabled">
-            <span class="toggleText">
-              <strong>Extension enabled</strong>
-              <span
-                >Continuously watch the active page for risky chat
-                patterns.</span
-              >
-            </span>
-            <input id="enabled" type="checkbox" />
-          </label>
-        </div>
+        <details id="editSettings" class="settingsDetails">
+          <summary>
+            Edit settings
+            <svg
+              class="settingsChev"
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="2 4 6 8 10 4" />
+            </svg>
+          </summary>
+          <div class="settingsBody">
+            <div class="row" style="margin-top: 12px">
+              <label class="toggle" for="enabled">
+                <span class="toggleText">
+                  <strong>Extension enabled</strong>
+                  <span
+                    >Continuously watch the active page for risky chat
+                    patterns.</span
+                  >
+                </span>
+                <input id="enabled" type="checkbox" />
+              </label>
+            </div>
 
-        <div class="row">
-          <label for="backendBaseUrl">Backend base URL</label>
-          <input
-            id="backendBaseUrl"
-            type="text"
-            value="http://127.0.0.1:8000"
-          />
-        </div>
+            <div class="row">
+              <label for="backendBaseUrl">Backend base URL</label>
+              <input
+                id="backendBaseUrl"
+                type="text"
+                value="http://127.0.0.1:8000"
+              />
+            </div>
 
-        <div class="row">
-          <label for="scanIntervalMinutes">Scan interval (minutes)</label>
-          <input id="scanIntervalMinutes" type="number" min="1" value="1" />
-        </div>
+            <div class="row">
+              <label for="scanIntervalMinutes">Scan interval (minutes)</label>
+              <input id="scanIntervalMinutes" type="number" min="1" value="1" />
+            </div>
 
-        <div class="row" style="margin-bottom: 14px">
-          <label for="warningThreshold">Warning threshold</label>
-          <input
-            id="warningThreshold"
-            type="number"
-            min="0"
-            max="100"
-            value="40"
-          />
-        </div>
+            <div class="row" style="margin-bottom: 12px">
+              <label for="warningThreshold">Warning threshold</label>
+              <input
+                id="warningThreshold"
+                type="number"
+                min="0"
+                max="100"
+                value="40"
+              />
+            </div>
 
-        <div class="actions">
-          <button id="save" class="primary">Save settings</button>
-          <button id="scanNow" class="secondary">Scan tab now</button>
-          <button id="openDemo" class="tertiary">Open demo page</button>
-          <button id="clearReports" class="tertiary">Clear saved reports</button>
+            <button id="save" class="primary" type="button">Save settings</button>
+          </div>
+        </details>
+
+        <div class="actions" style="margin-top: 10px">
+          <button id="scanNow" class="primary" type="button">Scan tab now</button>
+          <button id="clearReports" class="secondary" type="button">
+            Clear saved reports
+          </button>
         </div>
       </section>
 
@@ -366,16 +405,6 @@
           <span id="resultPill" class="pill pillSafe">Idle</span>
         </div>
         <div id="lastResult" class="resultContent muted">No scans yet.</div>
-      </section>
-
-      <section class="note">
-        Chromium demo: start the backend, load this folder as an unpacked
-        extension, then click <b>Open demo page</b>.
-      </section>
-
-      <section class="note">
-        Debug view shows the extracted transcript, matched phrases, and the
-        flagged messages used for scoring.
       </section>
     </div>
 

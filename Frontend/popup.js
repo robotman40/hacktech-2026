@@ -7,6 +7,9 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+/** Same as `RESULTS_KEY` in `background.js` — written whenever a content-script scan updates stored results. */
+const TAB_RESULTS_STORAGE_KEY = "hacktechSafetyTabResults";
+
 const APP_ALERT_TITLE =
   typeof KANDOR_APP_ALERT_TITLE !== "undefined" && KANDOR_APP_ALERT_TITLE
     ? KANDOR_APP_ALERT_TITLE
@@ -51,6 +54,16 @@ function renderList(title, items, mapper) {
       </div>
     </div>
   `;
+}
+
+function conciseActionLabel(action) {
+  const labels = {
+    none: "No action",
+    monitor: "Monitor",
+    warn_user: "Warn user",
+    block_and_alert_guardian: "Block and alert guardian",
+  };
+  return labels[action] || action || "Monitor";
 }
 
 function threatLabel(threat) {
@@ -104,17 +117,6 @@ async function loadView() {
     const tabId = response.tabId;
     updateResultPill(result);
 
-    const extractedMessages = renderList(
-      "Extracted transcript",
-      (result.extracted_messages || []).slice(-8),
-      (item) => `
-        <div class="listItem">
-          <div><b>${escapeHtml(item.speaker || "unknown")}</b>: ${escapeHtml(item.text || "")}</div>
-          <div class="mutedLine" style="margin-top:4px;">Source: ${escapeHtml(item.source || "generic")}</div>
-        </div>
-      `,
-    );
-
     const flaggedMessages = renderList(
       "Flagged messages",
       result.flagged_messages || [],
@@ -131,10 +133,8 @@ async function loadView() {
       <div><b>Page</b>: <span class="mono">${escapeHtml(result.pageUrl || "n/a")}</span></div>
       <div><b>Danger</b>: ${escapeHtml(result.danger_rating)}</div>
       <div><b>Confidence</b>: ${escapeHtml(result.confidence_score)}</div>
-      <div><b>Action</b>: ${escapeHtml(result.recommended_action || "monitor")}</div>
-      <div><b>Platform</b>: ${escapeHtml(result.platform || "generic")}</div>
+      <div><b>Action</b>: ${escapeHtml(conciseActionLabel(result.recommended_action || "monitor"))}</div>
       <div><b>Threats</b>: <span>${renderThreatChips(result.threats_detected || [])}</span></div>
-      <div><b>Evaluation</b>: ${escapeHtml(result.evaluation || "No evaluation returned.")}</div>
       <details style="margin-top:10px;">
         <summary style="cursor:pointer;font-size:12px;font-weight:600;color:#4b5563;padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px;user-select:none;">
           <svg class="ht-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform 150ms ease;flex-shrink:0"><polyline points="2 4 6 8 10 4"/></svg>
@@ -143,13 +143,11 @@ async function loadView() {
         <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
           <div><b>Flagged phrases</b>: ${escapeHtml((result.flagged_phrases || []).join(" | ") || "None")}</div>
           <div><b>Messages scanned</b>: ${escapeHtml(result.scanned_messages || 0)}</div>
-          <div><b>Endpoint</b>: <span class="mono">${escapeHtml(result.endpoint || "n/a")}</span></div>
           ${
             result.highest_risk_message
               ? `<div class="listItem"><b>Highest-risk message</b><div style="margin-top:6px;">${escapeHtml(result.highest_risk_message)}</div></div>`
               : ""
           }
-          ${extractedMessages}
           ${flaggedMessages}
         </div>
       </details>
@@ -227,16 +225,17 @@ document.getElementById("scanNow").addEventListener("click", () => {
   });
 });
 
-document.getElementById("openDemo").addEventListener("click", () => {
-  chrome.runtime.sendMessage({ type: "OPEN_DEMO_PAGE" });
-});
-
 document.getElementById("clearReports").addEventListener("click", () => {
   chrome.runtime.sendMessage({ type: "CLEAR_ALL_RESULTS" }, () => {
     updateResultPill(null);
     document.getElementById("lastResult").innerHTML =
       `<div class="mutedLine">No saved report for this tab yet.</div>`;
   });
+});
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== "local" || !changes[TAB_RESULTS_STORAGE_KEY]) return;
+  loadView();
 });
 
 loadView();

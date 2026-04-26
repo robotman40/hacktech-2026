@@ -251,14 +251,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  if (message?.type === "OPEN_DEMO_PAGE") {
-    getSettings()
-      .then((settings) => chrome.tabs.create({ url: `${settings.backendBaseUrl}/demo` }))
-      .then(() => sendResponse({ success: true }))
-      .catch((error) => sendResponse({ success: false, error: error.message }));
-    return true;
-  }
-
   if (message?.type !== "SCAN_PAGE_HTML") return;
 
   (async () => {
