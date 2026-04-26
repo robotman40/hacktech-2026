@@ -1,3 +1,56 @@
+const FOOTER_LOGOS: { src: string; alt: string; imgClass: string }[] = [
+  {
+    src: "/logos/kandor.png",
+    alt: "Kandor",
+    imgClass:
+      "h-12 w-auto max-w-[min(88vw,24rem)] object-contain object-left md:h-[3.375rem] md:max-w-[27rem]",
+  },
+  { src: "/logos/figma.png", alt: "Figma", imgClass: "h-[2.625rem] w-auto md:h-12" },
+  { src: "/logos/fastapi.png", alt: "FastAPI", imgClass: "h-9 w-auto md:h-[2.625rem]" },
+  { src: "/logos/gemini.png", alt: "Gemini", imgClass: "h-9 w-auto md:h-[2.625rem]" },
+  { src: "/logos/lovable.png", alt: "Lovable", imgClass: "h-[4.5rem] w-auto md:h-[5.25rem]" },
+  {
+    src: "/logos/k2think.png",
+    alt: "K2 Think",
+    imgClass:
+      "h-[2.625rem] w-auto max-w-[21rem] object-contain md:h-12 md:max-w-[24rem]",
+  },
+];
+
+function FooterLogos() {
+  return (
+    <nav
+      className="relative w-full overflow-hidden"
+      aria-label="Sponsor and stack logos"
+    >
+      <div className="flex w-max will-change-transform animate-logo-marquee">
+        {[0, 1].map((pass) => (
+          <ul
+            key={pass}
+            className={`logo-marquee-segment flex list-none items-center justify-center gap-6 px-2 md:gap-10 md:px-4 ${pass === 1 ? "logo-marquee-dup" : ""}`}
+            aria-hidden={pass === 1}
+          >
+            {FOOTER_LOGOS.map((logo) => (
+              <li
+                key={`${logo.src}-${pass}`}
+                className="flex shrink-0 items-center"
+              >
+                <img
+                  src={logo.src}
+                  alt={pass === 0 ? logo.alt : ""}
+                  loading="lazy"
+                  decoding="async"
+                  className={`${logo.imgClass} object-contain saturate-0`}
+                />
+              </li>
+            ))}
+          </ul>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
 export default function App() {
   return (
     <div className="relative flex min-h-dvh flex-col overflow-hidden bg-gradient-to-br from-blue-100 via-indigo-100 to-fuchsia-100/90 dark:from-slate-950 dark:via-indigo-950 dark:to-violet-950">
@@ -71,10 +124,8 @@ export default function App() {
           </section>
         </div>
 
-        <footer className="mt-auto w-full border-t border-gray-200/50 py-6 dark:border-white/10 pt-50">
-          <p className="font-serif text-sm font-medium tracking-tight text-gray-500 dark:text-gray-400">
-            kandor.
-          </p>
+        <footer className="mt-auto w-full border-t border-gray-200/50 py-7 dark:border-white/10 pt-50">
+          <FooterLogos />
         </footer>
       </main>
 

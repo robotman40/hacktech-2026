@@ -184,3 +184,31 @@
     line-height: 1.5;
   }
 }
+
+@keyframes logo-marquee {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@layer utilities {
+  .animate-logo-marquee {
+    animation: logo-marquee 55s linear infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-logo-marquee {
+    animation: none;
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .logo-marquee-dup {
+    display: none;
+  }
+}
