@@ -239,6 +239,93 @@ function isInstagramInboxDesktopLayout() {
   );
 }
 
+/**
+ * Short, fixed copy from Instagram DMs (nav, thread chrome, composer placeholders, status rows).
+ * When the full visible line matches, it is not user chat. Tune this list as the UI changes.
+ * @param {string} text normalized or raw — normalized inside
+ */
+function isLikelyInstagramUiChromeText(text) {
+  const t = normalizeText(text);
+  if (!t) return true;
+
+  if (t.length > 160) return false;
+
+  const lower = t
+    .toLowerCase()
+    .replace(/…/g, "...")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const exact = new Set([
+    "messages",
+    "direct",
+    "new message",
+    "inbox",
+    "requests",
+    "message requests",
+    "message request",
+    "primary",
+    "general",
+    "search",
+    "search...",
+    "message...",
+    "send a message",
+    "write a message",
+    "active now",
+    "active today",
+    "from meta ai",
+    "meta ai",
+    "online",
+    "typing",
+    "typing...",
+    "seen",
+    "delivered",
+    "video chat",
+    "voice message",
+    "add a comment",
+    "turn on notifications",
+    "get notified of new messages",
+    "get notified about new activity",
+    "group name",
+    "add people",
+    "start the conversation",
+    "you can send the first message",
+    "this account can’t receive your message",
+    "this account can't receive your message",
+    "message unavailable",
+    "message was deleted",
+    "select a chat",
+    "no messages yet",
+    "mute messages",
+    "report conversation",
+  ]);
+
+  if (exact.has(lower)) return true;
+
+  if (/^you replied to\b/i.test(t)) return true;
+  if (/^you answered an audio call\b/i.test(t)) return true;
+  if (/^reacted to\b/i.test(t)) return true;
+  if (/^liked a message$/i.test(t)) return true;
+  if (/^unsent a message$/i.test(t)) return true;
+  if (/^this message was unsent\./i.test(t)) return true;
+  if (/^view (profile|shop|details|story)/i.test(t)) return true;
+  if (/^see translation$/i.test(t)) return true;
+  if (/^translated? by google$/i.test(t)) return true;
+  if (/^last active\b/i.test(t)) return true;
+  if (/^\d{1,2}:\d{2}\s*(am|pm)?$/i.test(t)) return true;
+  if (/^(today|yesterday|sun(day)?|mon(day)?|tue(sday)?|wed(nesday)?|thu(rsday)?|fri(day)?|sat(urday)?)\.?$/i.test(lower)) {
+    return t.length <= 12;
+  }
+  if (/^\d+(\s+new)?\s+messages?$/i.test(t)) return true;
+  if (/^notes?$/i.test(t) && t.length <= 6) return true;
+  if (/^[·•●◦\s]+$/u.test(t)) return true;
+  if (t.length <= 2) {
+    const letters = t.match(/[\p{L}]/gu);
+    if (!letters || letters.length < 2) return true;
+  }
+  return false;
+}
+
 function isLikelyInstagramNameLabel(text) {
   const t = normalizeText(text || "");
   if (!t || t.length > 64) return false;
