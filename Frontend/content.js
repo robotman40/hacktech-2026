@@ -1080,7 +1080,7 @@ chrome.runtime.onMessage.addListener((message) => {
     console.log(
       "[kandor] Manual or alarm-triggered scan without signature check",
     );
-    scanPage((noSignatureCheck = true));
+    scanPage(true);
   }
 });
 
