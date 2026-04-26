@@ -8,7 +8,7 @@ export default function App() {
         <div className="absolute top-1/2 left-1/2 h-[28rem] w-[28rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-indigo-400/25 blur-3xl dark:bg-indigo-500/20" />
       </div>
 
-      <main className="relative z-10 mx-auto flex w-full min-h-dvh max-w-6xl flex-1 flex-col px-6 pt-[25rem] text-center md:pt-[25rem]">
+      <main className="relative z-10 mx-auto flex w-full min-h-dvh max-w-7xl flex-1 flex-col px-5 pt-[25rem] text-center sm:px-6 md:pt-[25rem]">
         <div className="relative flex w-full flex-1 flex-col items-center">
           <div className="w-full max-w-xl animate-[fadeIn_0.6s_ease-out]">
             <h1 className="text-6xl md:text-7xl font-serif font-medium tracking-tight mb-4 bg-gradient-to-br from-gray-900 to-gray-600 dark:from-white dark:to-gray-400 bg-clip-text text-transparent">
@@ -28,18 +28,18 @@ export default function App() {
           </a>
 
           <section
-            className="mt-20 w-full max-w-6xl md:mt-100"
+            className="mt-20 w-full md:mt-100"
             aria-labelledby="demo-preview-heading"
           >
-            <div className="flex w-full flex-col items-stretch gap-10 md:flex-row md:items-center md:gap-10 lg:gap-14">
-              <div className="w-full max-w-2xl shrink-0 text-left md:max-w-md lg:max-w-lg">
+            <div className="grid w-full grid-cols-1 items-center gap-10 md:grid-cols-5 md:items-center md:gap-8 lg:gap-10">
+              <div className="flex min-h-0 flex-col justify-center gap-6 text-left md:col-span-2 md:gap-7 md:pr-2 lg:pr-4">
                 <h2
                   id="demo-preview-heading"
-                  className="font-serif text-2xl font-medium tracking-tight text-gray-900 dark:text-white md:text-3xl"
+                  className="font-serif text-2xl font-medium tracking-tight text-gray-900 dark:text-white md:text-3xl lg:text-[2rem] lg:leading-snug"
                 >
                   Detect malicious conversations
                 </h2>
-                <p className="mt-4 text-base leading-relaxed text-gray-600 dark:text-gray-300">
+                <p className="text-base leading-relaxed text-gray-600 dark:text-gray-300 md:text-[1.0625rem] md:leading-[1.75]">
                   Kandor scans supported social pages in Chrome for signs of
                   manipulation, grooming, and other online threats. If it finds
                   anything suspicious, it gives you a clear alert with
@@ -48,21 +48,22 @@ export default function App() {
                 </p>
               </div>
 
-              <div className="relative flex min-h-0 min-w-0 flex-1 justify-center md:justify-end">
+              <div className="relative flex w-full min-w-0 items-center justify-center py-1 md:col-span-3 md:min-h-[min(26rem,62vh)] md:justify-end">
                 <div
-                  className="pointer-events-none absolute left-1/2 top-1/2 z-0 h-[min(38rem,95vw)] w-[min(52rem,100%)] max-w-full -translate-x-1/2 -translate-y-1/2 bg-[radial-gradient(ellipse_70%_55%_at_50%_50%,rgb(99,102,241,0.55),rgb(59,130,246,0.4),rgb(124,58,237,0.3)_45%,rgb(30,64,175,0.12)_58%,transparent_72%)] dark:bg-[radial-gradient(ellipse_68%_52%_at_50%_50%,rgb(99,102,241,0.5),rgb(37,99,235,0.4),rgb(109,40,217,0.32)_48%,rgb(30,27,75,0.35)_60%,transparent_74%)]"
+                  className="pointer-events-none absolute left-1/2 top-1/2 z-0 h-[min(48rem,125%)] w-[min(64rem,130%)] max-w-[220%] -translate-x-1/2 -translate-y-1/2 bg-[radial-gradient(ellipse_70%_55%_at_50%_50%,rgb(99,102,241,0.55),rgb(59,130,246,0.4),rgb(124,58,237,0.3)_45%,rgb(30,64,175,0.12)_58%,transparent_72%)] dark:bg-[radial-gradient(ellipse_68%_52%_at_50%_50%,rgb(99,102,241,0.5),rgb(37,99,235,0.4),rgb(109,40,217,0.32)_48%,rgb(30,27,75,0.35)_60%,transparent_74%)]"
                   aria-hidden
                 />
                 <div
-                  className="pointer-events-none absolute left-1/2 top-1/2 z-0 h-72 w-[min(40rem,100%)] max-w-full -translate-x-1/2 -translate-y-1/2 rounded-[3rem] bg-gradient-to-br from-indigo-500/45 via-blue-500/40 to-fuchsia-500/45 opacity-90 blur-3xl dark:from-indigo-500/50 dark:via-violet-600/45 dark:to-blue-600/40"
+                  className="pointer-events-none absolute left-1/2 top-1/2 z-0 h-96 w-full max-w-4xl -translate-x-1/2 -translate-y-1/2 rounded-[3rem] bg-gradient-to-br from-indigo-500/45 via-blue-500/40 to-fuchsia-500/45 opacity-90 blur-3xl dark:from-indigo-500/50 dark:via-violet-600/45 dark:to-blue-600/40"
                   aria-hidden
                 />
-                <picture className="relative z-10 w-full max-w-[min(100%,24rem)] sm:max-w-md lg:max-w-lg">
+                <picture className="relative z-10 w-full max-w-3xl sm:max-w-4xl md:max-w-none">
                   <img
                     src="/hacktech-demo.png"
-                    width={(1875 * 2) / 5}
-                    height={(1905 * 2) / 5}
-                    className="h-auto w-full rounded-xl shadow-[0_20px_50px_-12px_rgba(67,56,202,0.25),0_8px_24px_rgba(15,23,42,0.12)] dark:shadow-[0_24px_56px_-12px_rgba(99,102,241,0.3),0_8px_24px_rgba(0,0,0,0.35)]"
+                    width={1875}
+                    height={1905}
+                    className="h-auto w-full rounded-xl shadow-[0_24px_60px_-12px_rgba(67,56,202,0.3),0_8px_24px_rgba(15,23,42,0.14)] dark:shadow-[0_28px_64px_-12px_rgba(99,102,241,0.35),0_8px_24px_rgba(0,0,0,0.35)]"
+                    alt="Kandor extension demo showing a safety alert in the browser"
                   />
                 </picture>
               </div>
