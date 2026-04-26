@@ -5,10 +5,26 @@ const FOOTER_LOGOS: { src: string; alt: string; imgClass: string }[] = [
     imgClass:
       "h-12 w-auto max-w-[min(88vw,24rem)] object-contain object-left md:h-[3.375rem] md:max-w-[27rem]",
   },
-  { src: "/logos/figma.png", alt: "Figma", imgClass: "h-[2.625rem] w-auto md:h-12" },
-  { src: "/logos/fastapi.png", alt: "FastAPI", imgClass: "h-9 w-auto md:h-[2.625rem]" },
-  { src: "/logos/gemini.png", alt: "Gemini", imgClass: "h-9 w-auto md:h-[2.625rem]" },
-  { src: "/logos/lovable.png", alt: "Lovable", imgClass: "h-[4.5rem] w-auto md:h-[5.25rem]" },
+  {
+    src: "/logos/figma.png",
+    alt: "Figma",
+    imgClass: "h-[2.625rem] w-auto md:h-12",
+  },
+  {
+    src: "/logos/fastapi.png",
+    alt: "FastAPI",
+    imgClass: "h-9 w-auto md:h-[2.625rem]",
+  },
+  {
+    src: "/logos/gemini.png",
+    alt: "Gemini",
+    imgClass: "h-9 w-auto md:h-[2.625rem]",
+  },
+  {
+    src: "/logos/lovable.png",
+    alt: "Lovable",
+    imgClass: "h-[2.625rem] w-auto md:h-[2.625rem]",
+  },
   {
     src: "/logos/k2think.png",
     alt: "K2 Think",
@@ -27,7 +43,7 @@ function FooterLogos() {
         {[0, 1].map((pass) => (
           <ul
             key={pass}
-            className={`logo-marquee-segment flex list-none items-center justify-center gap-6 px-2 md:gap-10 md:px-4 ${pass === 1 ? "logo-marquee-dup" : ""}`}
+            className={`logo-marquee-segment flex list-none items-center justify-center gap-10 px-4 md:gap-16 md:px-8 ${pass === 1 ? "logo-marquee-dup" : ""}`}
             aria-hidden={pass === 1}
           >
             {FOOTER_LOGOS.map((logo) => (
