@@ -1,5 +1,11 @@
 const SETTINGS_KEY = "hacktechSafetySettings";
 const RESULTS_KEY = "hacktechSafetyTabResults";
+/** Cookie + local storage: JSON array of high-danger snippets (same shape) for the parent dashboard. */
+const HIGH_RISK_SNIPPETS_COOKIE = "kandorHighRiskSnippets";
+const HIGH_RISK_FEED_KEY = "kandorHighRiskFeed";
+const HIGH_RISK_DANGER_MIN = 70;
+const MAX_HIGH_RISK_SNIPPETS = 10;
+const MAX_SNIPPET_CHARS = 450;
 
 const DEFAULT_SETTINGS = {
   enabled: true,
@@ -28,8 +34,22 @@ async function getTabResults() {
   return result[RESULTS_KEY] || {};
 }
 
+function extensionCookieUrl() {
+  return chrome.runtime.getURL("/");
+}
+
+async function clearHighRiskSnippetsCookie() {
+  return new Promise((resolve) => {
+    chrome.cookies.remove(
+      { url: extensionCookieUrl(), name: HIGH_RISK_SNIPPETS_COOKIE, path: "/" },
+      () => resolve(),
+    );
+  });
+}
+
 async function clearAllResults() {
-  await chrome.storage.local.set({ [RESULTS_KEY]: {} });
+  await chrome.storage.local.set({ [RESULTS_KEY]: {}, [HIGH_RISK_FEED_KEY]: [] });
+  await clearHighRiskSnippetsCookie();
 }
 
 async function getLastResult(tabId) {
@@ -50,6 +70,82 @@ async function clearLastResult(tabId) {
   const results = await getTabResults();
   delete results[String(tabId)];
   await chrome.storage.local.set({ [RESULTS_KEY]: results });
+}
+
+function pickSnippetText(result) {
+  const hr = result?.highest_risk_message;
+  if (hr && String(hr).trim()) return String(hr).trim().slice(0, MAX_SNIPPET_CHARS);
+  const fm = result?.flagged_messages;
+  if (Array.isArray(fm) && fm.length) {
+    const best = [...fm].sort(
+      (a, b) => String(b?.text || "").length - String(a?.text || "").length,
+    )[0];
+    const t = String(best?.text || "").trim();
+    if (t) return t.slice(0, MAX_SNIPPET_CHARS);
+  }
+  const ev = String(result?.evaluation || "").trim();
+  if (ev) return ev.slice(0, MAX_SNIPPET_CHARS);
+  return null;
+}
+
+function mirrorHighRiskToCookie(jsonArray) {
+  const value = encodeURIComponent(JSON.stringify(jsonArray));
+  if (value.length > 3600) {
+    const smaller = jsonArray.slice(0, 4);
+    return new Promise((resolve) => {
+      chrome.cookies.set(
+        {
+          url: extensionCookieUrl(),
+          name: HIGH_RISK_SNIPPETS_COOKIE,
+          value: encodeURIComponent(JSON.stringify(smaller)),
+          path: "/",
+        },
+        () => resolve(),
+      );
+    });
+  }
+  return new Promise((resolve) => {
+    chrome.cookies.set(
+      {
+        url: extensionCookieUrl(),
+        name: HIGH_RISK_SNIPPETS_COOKIE,
+        value,
+        path: "/",
+      },
+      () => resolve(),
+    );
+  });
+}
+
+async function maybeAppendHighRiskSnippet(result) {
+  if (Number(result?.danger_rating) < HIGH_RISK_DANGER_MIN) return;
+  const snippet = pickSnippetText(result);
+  if (!snippet) return;
+
+  const stored = await chrome.storage.local.get({ [HIGH_RISK_FEED_KEY]: [] });
+  const existing = stored[HIGH_RISK_FEED_KEY];
+  const list = Array.isArray(existing) ? existing : [];
+
+  const pageUrl = String(result.pageUrl || "");
+  const dedupKey = `${pageUrl}::${snippet.slice(0, 120)}`;
+  const filtered = list.filter(
+    (item) =>
+      `${String(item?.pageUrl || "")}::${String(item?.snippet || "").slice(0, 120)}` !==
+      dedupKey,
+  );
+
+  const entry = {
+    at: result.fetchedAt || new Date().toISOString(),
+    danger: Number(result.danger_rating),
+    pageUrl,
+    snippet,
+    evaluation: String(result.evaluation || "").slice(0, 500),
+    threats: Array.isArray(result.threats_detected) ? result.threats_detected.map(String) : [],
+  };
+
+  const next = [entry, ...filtered].slice(0, MAX_HIGH_RISK_SNIPPETS);
+  await chrome.storage.local.set({ [HIGH_RISK_FEED_KEY]: next });
+  await mirrorHighRiskToCookie(next);
 }
 
 async function getActiveTab() {
@@ -166,6 +262,7 @@ async function postHtmlToBackend(html, pageUrl, pageText, messages, platform, ta
       };
       console.log("[Hacktech Safety] Received result", result);
       await setLastResult(tabId, result);
+      await maybeAppendHighRiskSnippet(result);
       return result;
     } catch (error) {
       console.warn("[kandor] Backend request failed", endpoint, error);

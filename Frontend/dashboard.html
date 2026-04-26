@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kandor | Parent privacy dashboard</title>
+    <meta
+      name="description"
+      content="Parent view of kandor safety signals from saved extension scans."
+    />
+    <link rel="icon" type="image/png" href="icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="dashboard.css" />
+  </head>
+
+  <body>
+    <div class="app-shell">
+      <div class="app-backdrop" aria-hidden="true"></div>
+      <main class="page">
+        <section class="hero" aria-label="Parent dashboard">
+          <div class="hero-intro">
+            <p class="brand-name" lang="en">kandor</p>
+            <p class="hero-tagline">Parent Dashboard</p>
+            <div class="hero-stack-row">
+              <div class="hero-stack-item">
+                <span class="stack-label">Signals shared</span>
+                <span class="stack-value">Risk level, category, time, reason</span>
+              </div>
+              <div class="hero-stack-item">
+                <span class="stack-label">Hidden by default</span>
+                <span class="stack-value">Full transcripts, everyday messages</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="content-grid">
+          <div class="main-column" id="alerts">
+            <div class="section-heading">
+              <span class="section-kicker">Recent alerts</span>
+              <h2>Incident feed</h2>
+            </div>
+            <div class="alert-list" id="alert-list"></div>
+          </div>
+
+          <div class="side-column">
+            <section class="side-block" id="privacy-mode" aria-labelledby="privacy-heading">
+              <div class="section-heading section-heading-tight">
+                <span class="section-kicker">Privacy settings</span>
+                <h2 id="privacy-heading">Private Alert Mode: ON</h2>
+              </div>
+              <div class="side-block-body">
+                <div class="privacy-lede">
+                  <div class="status-dot" aria-hidden="true"></div>
+                  <div>
+                    <strong>Parents see signals first</strong>
+                    <p>
+                      Kandor shares risk level, category, timestamps, and a reason summary
+                      before any message content.
+                    </p>
+                  </div>
+                </div>
+                <ul class="side-list">
+                  <li>Everyday conversations stay hidden by default</li>
+                  <li>One short flagged excerpt can be revealed per item</li>
+                  <li>Off-platform and personal info requests surface earlier in scoring</li>
+                </ul>
+              </div>
+            </section>
+
+            <section class="side-block" aria-labelledby="guidance-heading">
+              <div class="section-heading section-heading-tight">
+                <span class="section-kicker">Parent guidance</span>
+                <h2 id="guidance-heading">Recommended actions</h2>
+              </div>
+              <div class="guidance-list" id="guidance-list"></div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="dashboard.js"></script>
+  </body>
+</html>

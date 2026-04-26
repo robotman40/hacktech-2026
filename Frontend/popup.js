@@ -225,6 +225,10 @@ document.getElementById("scanNow").addEventListener("click", () => {
   });
 });
 
+document.getElementById("openDashboard")?.addEventListener("click", () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL("dashboard.html") });
+});
+
 document.getElementById("clearReports").addEventListener("click", () => {
   chrome.runtime.sendMessage({ type: "CLEAR_ALL_RESULTS" }, () => {
     updateResultPill(null);
