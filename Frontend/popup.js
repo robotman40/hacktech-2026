@@ -177,8 +177,38 @@ document.getElementById("save").addEventListener("click", () => {
 });
 
 document.getElementById("scanNow").addEventListener("click", () => {
+  const btn = document.getElementById("scanNow");
+  const resultEl = document.getElementById("lastResult");
+  btn.disabled = true;
+  btn.textContent = "Scanning…";
+  updateResultPill(null);
+  resultEl.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="animation:ht-spin 0.9s linear infinite;flex-shrink:0">
+        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+      </svg>
+      <span class="muted">Scanning page…</span>
+    </div>
+    <style>@keyframes ht-spin{to{transform:rotate(360deg)}}</style>
+  `;
+
   chrome.runtime.sendMessage({ type: "RUN_MANUAL_SCAN" }, () => {
-    window.setTimeout(loadView, 2000);
+    let attempts = 0;
+    const MAX = 24;
+    const poll = () => {
+      chrome.runtime.sendMessage({ type: "GET_LAST_RESULT" }, (response) => {
+        attempts++;
+        const done = response?.success && response?.result;
+        if (done || attempts >= MAX) {
+          btn.disabled = false;
+          btn.textContent = "Scan tab now";
+          loadView();
+        } else {
+          window.setTimeout(poll, 500);
+        }
+      });
+    };
+    window.setTimeout(poll, 600);
   });
 });
 
