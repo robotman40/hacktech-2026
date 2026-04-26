@@ -21,7 +21,7 @@ export default function App() {
           </div>
 
           <a
-            href="#"
+            href="https://github.com/robotman40/hacktech-2026"
             className="inline-flex items-center justify-center px-8 py-3 mt-10 text-white bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl font-light shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 hover:scale-[1.02] transition-all duration-200 animate-[fadeIn_0.6s_ease-out_0.2s_both]"
           >
             add to chrome
