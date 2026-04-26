@@ -128,25 +128,40 @@ async function loadView() {
     );
 
     document.getElementById("lastResult").innerHTML = `
-      <div><b>Tab report</b>: ${escapeHtml(tabId != null ? `Tab ${tabId}` : "Current tab")}</div>
       <div><b>Page</b>: <span class="mono">${escapeHtml(result.pageUrl || "n/a")}</span></div>
       <div><b>Danger</b>: ${escapeHtml(result.danger_rating)}</div>
       <div><b>Confidence</b>: ${escapeHtml(result.confidence_score)}</div>
       <div><b>Action</b>: ${escapeHtml(result.recommended_action || "monitor")}</div>
       <div><b>Platform</b>: ${escapeHtml(result.platform || "generic")}</div>
       <div><b>Threats</b>: <span>${renderThreatChips(result.threats_detected || [])}</span></div>
-      <div><b>Flagged phrases</b>: ${escapeHtml((result.flagged_phrases || []).join(" | ") || "None")}</div>
-      <div><b>Messages scanned</b>: ${escapeHtml(result.scanned_messages || 0)}</div>
-      <div><b>Endpoint</b>: <span class="mono">${escapeHtml(result.endpoint || "n/a")}</span></div>
       <div><b>Evaluation</b>: ${escapeHtml(result.evaluation || "No evaluation returned.")}</div>
-      ${
-        result.highest_risk_message
-          ? `<div class="listItem"><b>Highest-risk message</b><div style="margin-top:6px;">${escapeHtml(result.highest_risk_message)}</div></div>`
-          : ""
-      }
-      ${extractedMessages}
-      ${flaggedMessages}
+      <details style="margin-top:10px;">
+        <summary style="cursor:pointer;font-size:12px;font-weight:600;color:#4b5563;padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px;user-select:none;">
+          <svg class="ht-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform 150ms ease;flex-shrink:0"><polyline points="2 4 6 8 10 4"/></svg>
+          More Info
+        </summary>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
+          <div><b>Flagged phrases</b>: ${escapeHtml((result.flagged_phrases || []).join(" | ") || "None")}</div>
+          <div><b>Messages scanned</b>: ${escapeHtml(result.scanned_messages || 0)}</div>
+          <div><b>Endpoint</b>: <span class="mono">${escapeHtml(result.endpoint || "n/a")}</span></div>
+          ${
+            result.highest_risk_message
+              ? `<div class="listItem"><b>Highest-risk message</b><div style="margin-top:6px;">${escapeHtml(result.highest_risk_message)}</div></div>`
+              : ""
+          }
+          ${extractedMessages}
+          ${flaggedMessages}
+        </div>
+      </details>
     `;
+
+    const det = document.querySelector("#lastResult details");
+    if (det) {
+      det.addEventListener("toggle", () => {
+        const chev = det.querySelector(".ht-chevron");
+        if (chev) chev.style.transform = det.open ? "rotate(180deg)" : "";
+      });
+    }
   });
 }
 
